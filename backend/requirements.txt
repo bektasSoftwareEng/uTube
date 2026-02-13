@@ -1,0 +1,27 @@
+# uTube Backend Dependencies
+
+# Core Framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+
+# Authentication & Security
+python-jose[cryptography]
+bcrypt
+
+# Data Validation
+pydantic
+pydantic-settings
+email-validator
+
+# CORS & Middleware
+python-dotenv
+
+# Video Processing
+opencv-python
+
+# Utilities
+requests
