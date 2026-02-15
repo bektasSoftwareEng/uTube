@@ -90,6 +90,20 @@ const Navbar = () => {
                 <div className="flex items-center gap-3 sm:gap-6">
                     {user ? (
                         <div className="flex items-center gap-4">
+                            {/* Upload Button */}
+                            <Link to="/upload">
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full hover:bg-white/10 transition-all font-bold text-sm"
+                                >
+                                    <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span className="hidden xs:inline">Upload</span>
+                                </motion.button>
+                            </Link>
+
                             {/* Absolute Override: Prominent Display for XSS verification */}
                             <span className="hidden sm:block text-sm font-black text-white italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
                                 Welcome, <span className="text-primary">{user?.username || 'User'}</span>

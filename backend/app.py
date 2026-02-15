@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from pathlib import Path
-from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR
+from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
 
@@ -42,20 +42,20 @@ app.include_router(recommendation_router, prefix=API_PREFIX)
 # Mount static files
 # /storage for local dev files
 app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
-# /uploads for video/thumbnail processing
-UPLOADS_DIR_PATH = Path("backend/uploads")
-UPLOADS_DIR_PATH.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR_PATH)), name="uploads")
+# /uploads for direct access to videos/thumbnails/avatars
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Initialize database on startup
 @app.on_event("startup")
 def startup_event():
     """Initialize database and ensure directories exist."""
     init_db()
-    # Double check uploads directory
-    UPLOADS_DIR_PATH.mkdir(parents=True, exist_ok=True)
+    # Ensure storage directories from config exist
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] {APP_NAME} v{APP_VERSION} started successfully!")
     print(f"[INFO] Storage/Uploads directories initialized")
+    print(f"[INFO] Saving to: {UPLOADS_DIR}")
     print(f"[INFO] API documentation: http://localhost:8000{API_PREFIX}/docs")
 
 

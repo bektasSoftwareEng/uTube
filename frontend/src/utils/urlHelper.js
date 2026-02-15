@@ -8,17 +8,25 @@ const BASE_URL = "http://localhost:8000";
 export const getValidUrl = (path, fallback) => {
     if (!path || path === "" || path.includes('synthetic')) return fallback;
 
-    // Remove problematic prefixes that cause 404s
-    let sanitizedPath = path.replace('/storage/', '/');
-    if (sanitizedPath.startsWith('storage/')) sanitizedPath = sanitizedPath.replace('storage/', '/');
+    // Remove only if it's already an absolute URL
+    if (path.startsWith('http')) return path;
 
-    // If it's already an absolute URL, return it
-    if (sanitizedPath.startsWith('http')) return sanitizedPath;
+    // Clear any white space
+    let normalizedPath = path.trim();
 
-    // Ensure relative paths have a leading slash for normalization
-    const normalizedPath = sanitizedPath.startsWith('/') ? sanitizedPath : `/${sanitizedPath}`;
+    // Ensure it starts with a leading slash
+    if (!normalizedPath.startsWith('/')) {
+        normalizedPath = `/${normalizedPath}`;
+    }
 
-    return `${BASE_URL}${normalizedPath}`;
+    const fullUrl = `${BASE_URL}${normalizedPath}`;
+
+    // Log for Task 2 verification
+    if (normalizedPath.includes('uploads')) {
+        console.log(`[URL Helper] Constructed: ${fullUrl} (Original: ${path})`);
+    }
+
+    return fullUrl;
 };
 
 export const getAvatarUrl = (path, username) => {

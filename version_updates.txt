@@ -18,3 +18,24 @@ Debug Tool Removal: Geliştirme aşamasında kullanılan "Debug Storage" butonu,
 Schema Alignment: Kayıt (Register) formu backend şemasıyla %100 uyumlu hale getirilerek full_name gibi desteklenmeyen alanlar kaldırıldı.
 
 Performance: Giriş ve çıkış işlemlerindeki yapay gecikmeler kaldırılarak yönlendirmeler anlık hale getirildi.
+
+uTube v1.1.0 - Phase 4: Creator Studio & Media Serving
+Bu güncelleme, kullanıcıların video yüklemesini sağlayan Upload Modülü'nü ve yüklenen içeriklerin sorunsuz oynatılmasını sağlayan Static File Serving altyapısını içerir.
+
+✨ Yeni Özellikler (Features)
+Video Upload UI: Upload.jsx sayfası eklendi. Kullanıcılar artık başlık, açıklama ve video dosyası seçerek içerik yükleyebiliyor.
+
+Protected Routes: /upload rotası korumaya alındı; giriş yapmamış kullanıcılar otomatik olarak /login sayfasına yönlendiriliyor.
+
+Dynamic Navbar: Giriş yapmış kullanıcılar için Navbar'a dinamik Upload (+) butonu eklendi.
+
+Multipart Support: ApiClient ve frontend mantığı, video dosyalarını multipart/form-data formatında Backend'e iletecek şekilde güncellendi.
+
+🔧 Düzeltmeler & Altyapı (Fixes & Infrastructure)
+Static Media Serving (Backend): main.py yapılandırılarak /uploads ve /storage klasörleri dış dünyaya açıldı. "Dosya var ama 404 hatası veriyor" sorunu çözüldü.
+
+Asset URL Normalization: urlHelper.js güncellendi. Backend'den gelen göreli (relative) dosya yollarının başına http://localhost:8000 eklenerek oynatıcı ve resimlerin kırık görünmesi engellendi.
+
+Crash Prevention: Backend'den dönen hata objelerinin (422 Unprocessable Entity) React'i çökertmesi engellendi; kullanıcı dostu hata mesajları eklendi.
+
+Schema Alignment: Frontend FormData anahtarları (video_file, title), Backend şemasıyla birebir uyumlu hale getirildi.

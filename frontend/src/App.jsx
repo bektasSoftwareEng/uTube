@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import VideoDetail from './pages/VideoDetail'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Upload from './pages/Upload'
 
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
                     <Route path="/video/:id" element={<VideoDetail />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/upload" element={<Upload />} />
 
                 </Routes>
             </main>
