@@ -1,0 +1,20 @@
+v1.0.0 - Core Authentication & Security
+Hardened Auth System: Kullanıcı kayıt ve giriş sistemleri, backend ile tam uyumlu hale getirilerek JWT (JSON Web Token) altyapısı kuruldu.
+
+XSS Protection: Frontend seviyesinde "Input Sanitization" (girdi arındırma) mekanizması eklendi; kullanıcı adları ve metin girişleri siber saldırılara karşı zırhlandırıldı.
+
+Password Validation: Kayıt aşamasında en az 8 karakter, büyük harf, rakam ve özel karakter zorunluluğu getiren güvenlik kuralları eklendi.
+
+v1.0.1 - Storage & UI Reactivity
+Atomic Sync: localStorage anahtarları (UTUBE_TOKEN, UTUBE_USER) merkezileştirilerek "Hayalet Kullanıcı" (hasToken: true, hasUser: false) sorunu kökten çözüldü.
+
+Event-Driven UI: Navbar'ın giriş durumuna anında tepki vermesi için authChange event yapısı kuruldu; sayfa yenilenmeden "Sign In" butonu kullanıcı profiliyle yer değiştiriyor.
+
+Fallback Logic: Backend'den eksik kullanıcı verisi geldiğinde sistemin çökmesini engelleyen manuel obje yapılandırma ve profil çekme mekanizmaları eklendi.
+
+v1.0.2 - Production Polish & Cleanup
+Debug Tool Removal: Geliştirme aşamasında kullanılan "Debug Storage" butonu, engelleme yapan alert() fonksiyonları ve gereksiz konsol logları temizlendi.
+
+Schema Alignment: Kayıt (Register) formu backend şemasıyla %100 uyumlu hale getirilerek full_name gibi desteklenmeyen alanlar kaldırıldı.
+
+Performance: Giriş ve çıkış işlemlerindeki yapay gecikmeler kaldırılarak yönlendirmeler anlık hale getirildi.

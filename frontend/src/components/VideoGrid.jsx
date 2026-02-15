@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK } from '../utils/urlHelper';
+
 
 export const VideoCard = ({ video }) => {
     return (
@@ -10,11 +12,11 @@ export const VideoCard = ({ video }) => {
             >
                 <div className="relative aspect-video rounded-xl overflow-hidden mb-3">
                     <img
-                        src={video.thumbnail_url || `https://picsum.photos/seed/${video.id}/800/450`}
+                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
                         alt={video.title}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                            e.target.src = `https://picsum.photos/seed/${video.id}/800/450`;
+                            e.target.src = THUMBNAIL_FALLBACK;
                         }}
                     />
                     <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
@@ -25,14 +27,16 @@ export const VideoCard = ({ video }) => {
                 <div className="flex gap-3">
                     <div className="w-10 h-10 rounded-full bg-surface shrink-0 overflow-hidden border border-white/10">
                         <img
-                            src={`http://localhost:8000/storage/profiles/${video.author?.profile_image || 'default_avatar.png'}`}
+                            src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                             alt={video.author?.username}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                                e.target.src = "https://ui-avatars.com/api/?name=" + video.author?.username;
+                                e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'User'}&background=random&color=fff`;
                             }}
                         />
+
                     </div>
+
                     <div>
                         <h3 className="font-bold text-sm line-clamp-2 leading-snug group-hover:text-primary transition-colors">
                             {video.title}
@@ -47,6 +51,7 @@ export const VideoCard = ({ video }) => {
                         </div>
                     </div>
                 </div>
+
             </motion.div>
         </Link>
     );

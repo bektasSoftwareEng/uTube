@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 
 const HeroSection = ({ featuredVideo }) => {
     if (!featuredVideo) {
@@ -14,13 +15,15 @@ const HeroSection = ({ featuredVideo }) => {
         <div className="relative h-[70vh] w-full overflow-hidden">
             {/* Background Image / Placeholder */}
             <img
-                src={featuredVideo.thumbnail_url || `https://picsum.photos/seed/${featuredVideo.id}/1280/720`}
+                src={getValidUrl(featuredVideo.thumbnail_url, THUMBNAIL_FALLBACK)}
                 alt={featuredVideo.title}
                 className="absolute inset-0 w-full h-full object-cover opacity-60"
                 onError={(e) => {
-                    e.target.src = `https://picsum.photos/seed/${featuredVideo.id}/1280/720`;
+                    e.target.src = THUMBNAIL_FALLBACK;
                 }}
             />
+
+
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
 
             <div className="absolute bottom-0 left-0 p-8 md:p-16 max-w-2xl">

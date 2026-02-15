@@ -3,48 +3,66 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
+import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
+
+
+
+const SidebarSkeleton = () => (
+    <div className="space-y-4">
+        {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex gap-3 animate-pulse">
+                <div className="w-32 xl:w-40 aspect-video bg-white/5 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3 bg-white/5 rounded w-full" />
+                    <div className="h-2 bg-white/5 rounded w-2/3" />
+                </div>
+            </div>
+        ))}
+    </div>
+);
 
 const VideoDetail = () => {
     const { id } = useParams();
     const [video, setVideo] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [recLoading, setRecLoading] = useState(false);
 
     useEffect(() => {
         const fetchVideoData = async () => {
             setLoading(true);
+            setRecLoading(true); // Reset sidebar state
             try {
                 // Fetch main video data
                 const videoResponse = await ApiClient.get(`/videos/${id}`);
                 const videoData = videoResponse.data;
                 setVideo(videoData);
+                setLoading(false); // Show main content as soon as it's ready
 
-                // Fetch contextual recommendations
-                // Passing author_id and category to prioritize related content
+                // Fetch hybrid recommendations (80/20 split)
                 const recResponse = await ApiClient.get('/feed/recommended', {
                     params: {
                         author_id: videoData.author?.id,
                         category: videoData.category,
+                        exclude_id: id,
                         limit: 10
                     }
                 });
 
-                // Filter current video and limit results
-                const filteredRecs = recResponse.data.filter(v => v.id !== parseInt(id));
-                setRecommendations(filteredRecs);
+                setRecommendations(recResponse.data);
             } catch (error) {
                 console.error('Failed to fetch video details:', error);
             } finally {
                 setLoading(false);
+                setRecLoading(false);
             }
         };
 
         fetchVideoData();
-        // Scroll to top when video changes
         window.scrollTo(0, 0);
     }, [id]);
 
-    if (loading) {
+    if (loading && !video) {
         return (
             <div className="pt-24 px-4 md:px-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
                 <div className="flex-1">
@@ -52,16 +70,8 @@ const VideoDetail = () => {
                     <div className="h-8 bg-surface rounded w-3/4 animate-pulse mb-4" />
                     <div className="h-4 bg-surface rounded w-1/4 animate-pulse mb-8" />
                 </div>
-                <div className="lg:w-80 xl:w-96 space-y-6">
-                    {[...Array(4)].map((_, i) => (
-                        <div key={i} className="flex gap-3 animate-pulse">
-                            <div className="w-32 aspect-video bg-surface rounded-lg shrink-0" />
-                            <div className="flex-1 space-y-2 py-1">
-                                <div className="h-3 bg-surface rounded w-full" />
-                                <div className="h-2 bg-surface rounded w-2/3" />
-                            </div>
-                        </div>
-                    ))}
+                <div className="lg:w-80 xl:w-96">
+                    <SidebarSkeleton />
                 </div>
             </div>
         );
@@ -69,19 +79,26 @@ const VideoDetail = () => {
 
     if (!video) return <div className="pt-24 text-center">Video not found</div>;
 
-    // Smart Playback Fallback Strategy
-    // During development, we use Big Buck Bunny if the local file is missing or a placeholder
-    const isLocalPlaceholder = !video.video_url || video.video_url.includes('placeholder') || video.video_url.includes('default');
-    const videoSrc = (isLocalPlaceholder)
-        ? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-        : (video.video_url?.startsWith('http') ? video.video_url : `http://localhost:8000${video.video_url}`);
+    // Rotating Fallback Strategy to demonstrate dynamic playback
+    const EVEN_FALLBACK = "https://vjs.zencdn.net/v/oceans.mp4";
+    const ODD_FALLBACK = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+    const DYNAMIC_FALLBACK = (parseInt(id) % 2 === 0) ? EVEN_FALLBACK : ODD_FALLBACK;
+
+    // Fail-Safe Playback: Priority to real backend URL, fallback to rotating test clips
+    const videoSrc = (video.video_url && video.video_url !== "" && !video.video_url.includes('synthetic'))
+        ? getValidUrl(video.video_url, DYNAMIC_FALLBACK)
+        : DYNAMIC_FALLBACK;
+
+
 
     return (
         <motion.div
+            key={id}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="pt-24 pb-12 px-4 md:px-8 max-w-[1700px] mx-auto"
         >
+
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Main Content (75% Width) */}
                 <div className="lg:col-span-3">
@@ -91,14 +108,21 @@ const VideoDetail = () => {
                             key={id}
                             controls
                             autoPlay
+                            crossOrigin="anonymous"
                             className="w-full h-full"
-                            poster={video.thumbnail_url || `https://picsum.photos/seed/${video.id}/1280/720`}
+                            poster={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                            onError={(e) => {
+                                // If the primary source fails, try the rotating fallback clip
+                                if (e.target.src !== DYNAMIC_FALLBACK) {
+                                    e.target.src = DYNAMIC_FALLBACK;
+                                }
+                            }}
+
                         >
                             <source src={videoSrc} type="video/mp4" />
-                            {/* Fallback source for testing */}
-                            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4" />
                             Your browser does not support the video tag.
                         </video>
+
                     </div>
 
                     {/* Video Info */}
@@ -107,12 +131,14 @@ const VideoDetail = () => {
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface">
                                 <img
-                                    src={`http://localhost:8000/storage/profiles/${video.author?.profile_image || 'default_avatar.png'}`}
+                                    src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                                     alt={video.author?.username}
                                     className="w-full h-full object-cover"
-                                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username}`; }}
+                                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'User'}&background=random&color=fff`; }}
                                 />
+
                             </div>
+
                             <div>
                                 <p className="font-bold">{video.author?.username}</p>
                                 <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
@@ -121,6 +147,8 @@ const VideoDetail = () => {
                                 Subscribe
                             </button>
                         </div>
+
+
 
                         <div className="flex items-center gap-2">
                             <div className="flex bg-white/10 rounded-full overflow-hidden glass">
@@ -173,29 +201,24 @@ const VideoDetail = () => {
                     </h2>
 
                     <div className="space-y-4">
-                        {loading ? (
-                            [...Array(6)].map((_, i) => (
-                                <div key={i} className="flex gap-3 animate-pulse">
-                                    <div className="w-32 xl:w-40 aspect-video bg-surface rounded-lg shrink-0" />
-                                    <div className="flex-1 space-y-2 py-1">
-                                        <div className="h-3 bg-surface rounded w-full" />
-                                        <div className="h-2 bg-surface rounded w-2/3" />
-                                    </div>
-                                </div>
-                            ))
+                        {recLoading ? (
+                            <SidebarSkeleton />
                         ) : recommendations.length > 0 ? (
                             recommendations.map((rec) => (
                                 <div key={rec.id} className="cursor-pointer group">
                                     <Link to={`/video/${rec.id}`} className="flex gap-3">
                                         <div className="w-32 xl:w-40 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
                                             <img
-                                                src={rec.thumbnail_url || `https://picsum.photos/seed/${rec.id}/800/450`}
+                                                src={getValidUrl(rec.thumbnail_url, THUMBNAIL_FALLBACK)}
                                                 alt={rec.title}
                                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                 onError={(e) => {
-                                                    e.target.src = `https://picsum.photos/seed/${rec.id}/800/450`;
+                                                    e.target.src = THUMBNAIL_FALLBACK;
                                                 }}
                                             />
+
+
+
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-xs xl:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">

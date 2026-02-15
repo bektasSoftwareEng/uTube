@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from pathlib import Path
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
@@ -21,10 +22,10 @@ app = FastAPI(
     redoc_url=f"{API_PREFIX}/redoc",
 )
 
-# Configure CORS
+# Configure CORS - Allow all for development to fix 403/CORS issues
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,17 +39,25 @@ app.include_router(comment_router, prefix=API_PREFIX)
 app.include_router(like_router, prefix=API_PREFIX)
 app.include_router(recommendation_router, prefix=API_PREFIX)
 
-# Mount static files for serving uploaded videos and thumbnails
+# Mount static files
+# /storage for local dev files
 app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+# /uploads for video/thumbnail processing
+UPLOADS_DIR_PATH = Path("backend/uploads")
+UPLOADS_DIR_PATH.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR_PATH)), name="uploads")
 
 # Initialize database on startup
 @app.on_event("startup")
 def startup_event():
-    """Initialize database tables on application startup."""
+    """Initialize database and ensure directories exist."""
     init_db()
+    # Double check uploads directory
+    UPLOADS_DIR_PATH.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] {APP_NAME} v{APP_VERSION} started successfully!")
-    print(f"[INFO] Database initialized")
+    print(f"[INFO] Storage/Uploads directories initialized")
     print(f"[INFO] API documentation: http://localhost:8000{API_PREFIX}/docs")
+
 
 
 # Root endpoint
