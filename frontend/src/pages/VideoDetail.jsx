@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
@@ -27,6 +27,7 @@ const VideoDetail = () => {
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [recLoading, setRecLoading] = useState(false);
+    const viewTracked = useRef(false);
 
     useEffect(() => {
         const fetchVideoData = async () => {
@@ -38,6 +39,13 @@ const VideoDetail = () => {
                 const videoData = videoResponse.data;
                 setVideo(videoData);
                 setLoading(false); // Show main content as soon as it's ready
+
+                // Task 1 & 2: Explicit View Tracking (Senior Requirements)
+                // Use Ref Guard to prevent StrictMode double-triggers
+                if (!viewTracked.current) {
+                    viewTracked.current = true;
+                    incrementView(id);
+                }
 
                 // Fetch hybrid recommendations (80/20 split)
                 const recResponse = await ApiClient.get('/feed/recommended', {
@@ -58,8 +66,28 @@ const VideoDetail = () => {
             }
         };
 
+        const incrementView = async (videoId) => {
+            try {
+                // Task 2: Silent Failure
+                await ApiClient.post(`/videos/${videoId}/view`);
+                // Task 1: Seamless UI Sync
+                setVideo(prev => ({
+                    ...prev,
+                    view_count: (prev?.view_count || 0) + 1
+                }));
+            } catch (err) {
+                // Fail silently as per Senior Requirement
+                console.warn('View tracking failed silently:', err);
+            }
+        };
+
         fetchVideoData();
         window.scrollTo(0, 0);
+
+        // Reset tracking on ID change
+        return () => {
+            viewTracked.current = false;
+        };
     }, [id]);
 
     if (loading && !video) {

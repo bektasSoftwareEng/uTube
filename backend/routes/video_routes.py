@@ -150,6 +150,7 @@ async def upload_video(
     category: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     video_file: UploadFile = File(...),
+    thumbnail_file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -201,7 +202,13 @@ async def upload_video(
         
         # Generate unique filenames
         video_filename = generate_unique_filename(video_file.filename)
-        thumbnail_filename = f"{os.path.splitext(video_filename)[0]}.jpg"
+        
+        if thumbnail_file:
+            # Task 1: Custom Thumbnail
+            extension = os.path.splitext(thumbnail_file.filename)[1]
+            thumbnail_filename = f"{os.path.splitext(video_filename)[0]}{extension}"
+        else:
+            thumbnail_filename = f"{os.path.splitext(video_filename)[0]}.jpg"
         
         # Define file paths
         video_path = os.path.join(VIDEOS_DIR, video_filename)
@@ -211,11 +218,16 @@ async def upload_video(
         with open(video_path, "wb") as buffer:
             shutil.copyfileobj(video_file.file, buffer)
         
-        # Generate thumbnail
-        thumbnail_success = generate_thumbnail(video_path, thumbnail_path, timestamp=1.0)
-        if not thumbnail_success:
-            # Use default thumbnail if generation fails
-            thumbnail_filename = "default_thumbnail.png"
+        if thumbnail_file:
+            # Save custom thumbnail
+            with open(thumbnail_path, "wb") as buffer:
+                shutil.copyfileobj(thumbnail_file.file, buffer)
+        else:
+            # Generate auto-thumbnail
+            thumbnail_success = generate_thumbnail(video_path, thumbnail_path, timestamp=1.0)
+            if not thumbnail_success:
+                # Use default thumbnail if generation fails
+                thumbnail_filename = "default_thumbnail.png"
         
         # Extract video metadata
         metadata = get_video_metadata(video_path)
@@ -374,10 +386,6 @@ def get_video(video_id: int, db: Session = Depends(get_db)):
             detail="Video not found"
         )
     
-    # Increment view count
-    video.view_count += 1
-    db.commit()
-    
     # Return response
     return VideoResponse(
         id=video.id,
@@ -398,6 +406,25 @@ def get_video(video_id: int, db: Session = Depends(get_db)):
             video_count=video.author.videos.count()
         )
     )
+
+@router.post("/{video_id}/view", status_code=status.HTTP_200_OK)
+async def increment_view_count(
+    video_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Increment the view count of a specific video (silent operation).
+    """
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video not found"
+        )
+    
+    video.view_count += 1
+    db.commit()
+    return {"status": "success", "view_count": video.view_count}
 
 
 @router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
