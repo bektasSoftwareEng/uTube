@@ -75,7 +75,7 @@ const Navbar = () => {
                     <div className="relative group">
                         <input
                             type="text"
-                            placeholder="Search lessons..."
+                            placeholder="Search porn videos..."
                             className="w-full bg-white/5 border border-white/10 rounded-full px-6 py-2.5 sm:py-3 focus:outline-none focus:border-primary/50 transition-all text-sm group-hover:bg-white/10"
                         />
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 group-hover:text-white/40">

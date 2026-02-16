@@ -170,8 +170,8 @@ const Upload = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
                         </motion.div>
-                        <h1 className="text-4xl font-black tracking-tight mb-2">Publish Lesson</h1>
-                        <p className="text-white/40 font-medium">Share your knowledge with high-quality content.</p>
+                        <h1 className="text-4xl font-black tracking-tight mb-2">Publish a Video</h1>
+                        <p className="text-white/40 font-medium">Share your high-quality porn content with fellow jerk mates.</p>
                     </header>
 
                     <AnimatePresence>
@@ -212,7 +212,7 @@ const Upload = () => {
                                         type="text"
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
-                                        placeholder="Lesson title..."
+                                        placeholder="Video Title..."
                                         className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:border-primary/50 transition-all text-white placeholder:text-white/20 font-medium group-hover:bg-white/10 shadow-inner"
                                         required
                                         disabled={isUploading}
@@ -226,7 +226,7 @@ const Upload = () => {
                                     <textarea
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
-                                        placeholder="What will students learn?"
+                                        placeholder="what do you want to share?"
                                         rows="6"
                                         className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:border-primary/50 transition-all text-white placeholder:text-white/20 font-medium group-hover:bg-white/10 shadow-inner resize-none"
                                         required
@@ -348,7 +348,7 @@ const Upload = () => {
                                         UPLOAD IN PROGRESS
                                     </>
                                 ) : (
-                                    'PUBLISH LESSON'
+                                    'PUBLISH VIDEO'
                                 )}
                             </span>
                         </motion.button>
