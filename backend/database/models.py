@@ -9,7 +9,7 @@ Models:
 - Comment: User comments on videos
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -123,7 +123,11 @@ class Video(Base):
     title = Column(String(200), nullable=False, index=True)
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=True, index=True)  # For filtering
-    tags = Column(String(500), nullable=True)  # Comma-separated tags
+    tags = Column(JSON, nullable=True, default=list)  # Recommendation-ready JSON array
+    
+    # Phase 5: Access Control & Scheduling
+    visibility = Column(String(20), nullable=False, default="public", index=True)  # public, unlisted, private
+    scheduled_at = Column(DateTime, nullable=True)  # UTC - For future publication
     
     # File Storage
     video_filename = Column(String(255), nullable=False)

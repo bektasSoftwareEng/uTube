@@ -18,10 +18,11 @@ from typing import List, Optional
 from datetime import datetime
 import os
 import shutil
+import json
 
 from backend.database import get_db
 from backend.database.models import User, Video
-from backend.routes.auth_routes import get_current_user
+from backend.routes.auth_routes import get_current_user, get_optional_user
 from backend.core.video_processor import (
     generate_unique_filename,
     validate_video_file,
@@ -76,6 +77,7 @@ class VideoListResponse(BaseModel):
     author: AuthorResponse
     duration: Optional[int] = None
     category: Optional[str] = None
+    tags: List[str] = []  # Phase 5: Recommendation-ready
     like_count: int = 0
 
     class Config:
@@ -88,7 +90,9 @@ class VideoResponse(BaseModel):
     title: str
     description: Optional[str]
     category: Optional[str]
-    tags: Optional[str]
+    tags: List[str] = []  # Phase 5: Recommendation-ready JSON tags
+    visibility: str = "public"  # Phase 5: Access control
+    scheduled_at: Optional[str] = None  # Phase 5: ISO 8601 datetime
     video_url: str
     thumbnail_url: str
     view_count: int
@@ -148,7 +152,9 @@ async def upload_video(
     title: str = Form(..., min_length=1, max_length=200),
     description: Optional[str] = Form(None),
     category: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),  # JSON string from frontend
+    visibility: str = Form("public"),  # Phase 5: public, unlisted, private
+    scheduled_at: Optional[str] = Form(None),  # Phase 5: ISO 8601 datetime
     video_file: UploadFile = File(...),
     thumbnail_file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
@@ -233,12 +239,30 @@ async def upload_video(
         metadata = get_video_metadata(video_path)
         duration = metadata.get("duration")
         
+        # Phase 5: Parse tags from JSON string
+        tags_list = []
+        if tags:
+            try:
+                tags_list = json.loads(tags)
+            except json.JSONDecodeError:
+                tags_list = []  # Fallback to empty if invalid JSON
+        
+        # Phase 5: Parse scheduled_at from ISO string
+        scheduled_datetime = None
+        if scheduled_at:
+            try:
+                scheduled_datetime = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
+            except ValueError:
+                scheduled_datetime = None  # Fallback to None if invalid
+        
         # Create database entry
         new_video = Video(
             title=title,
             description=description,
             category=category,
-            tags=tags,
+            tags=tags_list,  # Phase 5: JSON array
+            visibility=visibility,  # Phase 5: Access control
+            scheduled_at=scheduled_datetime,  # Phase 5: Publication scheduling
             video_filename=video_filename,
             thumbnail_filename=thumbnail_filename,
             duration=int(duration) if duration else None,
@@ -320,6 +344,14 @@ def get_all_videos(
     # Build query
     query = db.query(Video)
     
+    # Phase 5: Visibility & Scheduling Filter
+    # Only show public videos that are already published
+    now = datetime.utcnow()
+    query = query.filter(
+        Video.visibility == "public",
+        or_(Video.scheduled_at == None, Video.scheduled_at <= now)
+    )
+    
     # Apply category filter
     if category:
         query = query.filter(Video.category == category)
@@ -340,7 +372,7 @@ def get_all_videos(
         .limit(limit)\
         .all()
     
-    # Format response
+    # Format response with defensive tags handling
     return [
         VideoListResponse(
             id=video.id,
@@ -350,6 +382,7 @@ def get_all_videos(
             upload_date=video.upload_date.isoformat(),
             duration=video.duration,
             category=video.category,
+            tags=video.tags if video.tags else [],  # Phase 5: Defensive handling
             like_count=video.like_count,
             author=AuthorResponse(
                 id=video.author.id,
@@ -362,8 +395,12 @@ def get_all_videos(
     ]
 
 
-@router.get("/{video_id}", response_model=VideoResponse)
-def get_video(video_id: int, db: Session = Depends(get_db)):
+@router.get("/{video_id}/", response_model=VideoResponse)
+def get_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
     """
     Get specific video details and increment view count.
     
@@ -386,13 +423,33 @@ def get_video(video_id: int, db: Session = Depends(get_db)):
             detail="Video not found"
         )
     
-    # Return response
+    # Phase 5: Access Control Logic
+    now = datetime.utcnow()
+    is_owner = current_user and current_user.id == video.user_id
+    
+    # Private videos: Only accessible to owner
+    if video.visibility == "private" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This video is private"
+        )
+    
+    # Future-scheduled videos: Only accessible to owner
+    if video.scheduled_at and video.scheduled_at > now and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This video is not yet published"
+        )
+    
+    # Return response with defensive handling
     return VideoResponse(
         id=video.id,
         title=video.title,
         description=video.description,
         category=video.category,
-        tags=video.tags,
+        tags=video.tags if video.tags else [],  # Phase 5: Defensive handling
+        visibility=video.visibility,
+        scheduled_at=video.scheduled_at.isoformat() if video.scheduled_at else None,
         video_url=get_video_url(video.video_filename),
         thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
         view_count=video.view_count,
