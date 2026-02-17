@@ -395,7 +395,7 @@ def get_all_videos(
     ]
 
 
-@router.get("/{video_id}/", response_model=VideoResponse)
+@router.get("/{video_id}", response_model=VideoResponse)
 def get_video(
     video_id: int,
     db: Session = Depends(get_db),

@@ -10,6 +10,7 @@ export default {
                 background: "#0F0F0F",
                 surface: "#1A1A1A",
                 primary: "#FF0000", // YouTube Red
+                darkRed: "#8B0000",
             },
             backdropBlur: {
                 xs: '2px',

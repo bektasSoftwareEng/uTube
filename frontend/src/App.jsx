@@ -11,7 +11,7 @@ import Profile from './pages/Profile'
 function App() {
     console.log('App: Initializing main layout...');
     return (
-        <div className="min-h-screen bg-background text-white">
+        <div className="min-h-screen text-white">
 
             <Navbar />
             <main>

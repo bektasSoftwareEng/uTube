@@ -9,7 +9,8 @@
 
 body {
   margin: 0;
-  background-color: #0F0F0F;
+  background: radial-gradient(circle at 50% 0%, #450a0a 0%, #000000 100%);
+  min-height: 100vh;
   color: #FFFFFF;
   overflow-x: hidden;
 }
@@ -41,7 +42,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #B91C1C;
   border-radius: 10px;
 }
 
