@@ -4,3 +4,5 @@ backend/database/utube.db
 storage/
 .env
 node_modules/
+dist/
+venv/
