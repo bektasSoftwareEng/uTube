@@ -31,9 +31,16 @@ export const getValidUrl = (path, fallback) => {
 
 export const getAvatarUrl = (path, username) => {
     const fallback = `https://ui-avatars.com/api/?name=${username || 'User'}&background=random&color=fff`;
+    
     if (!path || path === "" || path.includes('default') || path.includes('synthetic')) {
         return fallback;
     }
+
+    // If it's just a filename (no slashes), assume it's in the uploads/avatars directory
+    if (!path.startsWith('http') && !path.includes('/')) {
+        return getValidUrl(`/uploads/avatars/${path}`, fallback);
+    }
+
     return getValidUrl(path, fallback);
 };
 
