@@ -73,6 +73,14 @@ class UserLogin(BaseModel):
         }
 
 
+class UserUpdate(BaseModel):
+    """Request model for user profile update."""
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[EmailStr] = Field(None)
+    password: Optional[str] = Field(None, min_length=8)
+    new_password: Optional[str] = Field(None, min_length=8)
+
+
 class Token(BaseModel):
     """Response model for authentication token."""
     access_token: str
@@ -345,16 +353,21 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 @router.put("/me", response_model=UserResponse)
 def update_user_profile(
+<<<<<<< Updated upstream
     username: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     current_password: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+=======
+    user_data: UserUpdate,
+>>>>>>> Stashed changes
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Update current user's profile information.
+<<<<<<< Updated upstream
     
     Handles:
     - Username update (uniqueness check)
@@ -371,11 +384,18 @@ def update_user_profile(
     # 1. Update Username
     if username and username != current_user.username:
         existing_username = db.query(User).filter(User.username == username).first()
+=======
+    """
+    # Check if username is being updated and is unique
+    if user_data.username and user_data.username != current_user.username:
+        existing_username = db.query(User).filter(User.username == user_data.username).first()
+>>>>>>> Stashed changes
         if existing_username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already taken"
             )
+<<<<<<< Updated upstream
         current_user.username = username
         
     # 2. Update Email
@@ -386,11 +406,19 @@ def update_user_profile(
                 detail="Invalid email format"
             )
         existing_email = db.query(User).filter(User.email == email).first()
+=======
+        current_user.username = user_data.username
+    
+    # Check if email is being updated and is unique
+    if user_data.email and user_data.email != current_user.email:
+        existing_email = db.query(User).filter(User.email == user_data.email).first()
+>>>>>>> Stashed changes
         if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
+<<<<<<< Updated upstream
         current_user.email = email
         
     # 3. Update Password
@@ -408,11 +436,30 @@ def update_user_profile(
             )
 
         is_valid, error_msg = validate_password_strength(password)
+=======
+        current_user.email = user_data.email
+    
+    # Check password update
+    if user_data.new_password:
+        # Verify old password if provided (optional but recommended security practice)
+        # For simplicity in this iteration, we might skip old password check or enforce it
+        # Let's verify password if 'password' field is provided as current_password
+        if user_data.password:
+            if not verify_password(user_data.password, current_user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Incorrect current password"
+                )
+        
+        # Validate strength
+        is_valid, error_msg = validate_password_strength(user_data.new_password)
+>>>>>>> Stashed changes
         if not is_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_msg
             )
+<<<<<<< Updated upstream
         current_user.password_hash = hash_password(password)
         
     # 4. Update Profile Picture
@@ -453,6 +500,14 @@ def update_user_profile(
             detail=f"Database update failed: {str(e)}"
         )
         
+=======
+        
+        current_user.password_hash = hash_password(user_data.new_password)
+    
+    db.commit()
+    db.refresh(current_user)
+    
+>>>>>>> Stashed changes
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -462,6 +517,93 @@ def update_user_profile(
     )
 
 
+<<<<<<< Updated upstream
+=======
+# ============================================================================
+# Subscription Routes
+# ============================================================================
+
+@router.post("/subscribe/{user_id}", status_code=status.HTTP_201_CREATED)
+def subscribe_to_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Subscribe to a user channel."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot subscribe to yourself")
+    
+    user_to_follow = db.query(User).filter(User.id == user_id).first()
+    if not user_to_follow:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Check existing subscription
+    existing = db.query(Subscription).filter(
+        Subscription.follower_id == current_user.id,
+        Subscription.following_id == user_id
+    ).first()
+    
+    if existing:
+        return {"message": "Already subscribed"}
+        
+    new_sub = Subscription(follower_id=current_user.id, following_id=user_id)
+    db.add(new_sub)
+    db.commit()
+    
+    return {"message": "Subscribed successfully"}
+
+
+@router.delete("/subscribe/{user_id}", status_code=status.HTTP_200_OK)
+def unsubscribe_from_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Unsubscribe from a user channel."""
+    subscription = db.query(Subscription).filter(
+        Subscription.follower_id == current_user.id,
+        Subscription.following_id == user_id
+    ).first()
+    
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+        
+    db.delete(subscription)
+    db.commit()
+    
+    return {"message": "Unsubscribed successfully"}
+
+
+@router.get("/subscriptions", response_model=list[UserResponse])
+def get_user_subscriptions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of users the current user is subscribed to."""
+    # Query subscriptions where follower_id is current_user.id
+    subs = db.query(Subscription).filter(Subscription.follower_id == current_user.id).all()
+    
+    # Extract the user objects (following_id)
+    followed_users = []
+    for sub in subs:
+        # We need to fetch the User object. 
+        # Since we have the relationship set up in Subscription model:
+        # following_user = relationship("User", foreign_keys=[following_id], ...)
+        if sub.following_user:
+            followed_users.append(sub.following_user)
+            
+    return [
+        UserResponse(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            profile_image=u.profile_image,
+            created_at=u.created_at.isoformat()
+        ) for u in followed_users
+    ]
+
+
+>>>>>>> Stashed changes
 # ============================================================================
 # Optional: Password Reset (Placeholder)
 # ============================================================================
