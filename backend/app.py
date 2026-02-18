@@ -4,11 +4,19 @@ Main Application Entry Point
 FastAPI application setup and configuration.
 """
 
+# CRITICAL: Load .env FIRST before any other imports
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables from .env file
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+print(f"[INFO] Loading environment variables from: {env_path}")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from pathlib import Path
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
@@ -41,7 +49,7 @@ app.include_router(recommendation_router, prefix=API_PREFIX)
 
 # Mount static files
 # /storage for local dev files
-app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+app.mount("/storage", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "storage")), name="storage")
 # /uploads for direct access to videos/thumbnails/avatars
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 

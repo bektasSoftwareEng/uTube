@@ -27,7 +27,7 @@ DEBUG_MODE = True  # Set to False in production
 # Security Settings (change these in production!)
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours for development (prevents timeout during long uploads)
 
 # File Upload Settings
 MAX_VIDEO_SIZE_MB = 500
@@ -40,11 +40,15 @@ UPLOADS_DIR = STORAGE_DIR / "uploads"
 VIDEOS_DIR = UPLOADS_DIR / "videos"
 THUMBNAILS_DIR = UPLOADS_DIR / "thumbnails"
 AVATARS_DIR = UPLOADS_DIR / "avatars"
+PREVIEWS_DIR = UPLOADS_DIR / "previews"  # Phase 6: AI thumbnail generation frames
 TEMP_DIR = STORAGE_DIR / "temp"
+TEMP_UPLOADS_DIR = UPLOADS_DIR / "temp"
 
 # Ensure storage directories exist
-for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, TEMP_DIR]:
+for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, PREVIEWS_DIR, TEMP_DIR, TEMP_UPLOADS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+
 
 # API Settings
 API_PREFIX = "/api/v1"

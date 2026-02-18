@@ -178,6 +178,82 @@ def generate_thumbnail(video_path: str, thumbnail_path: str, timestamp: float = 
         return False
 
 
+def generate_preview_frames(video_path: str, output_dir: str, video_id: int, count: int = 3) -> list:
+    """
+    Extract 3 high-quality frames from video for thumbnail selection.
+    
+    SIMPLIFIED: No AI processing - just raw, clean frame extraction.
+    
+    Args:
+        video_path: Path to the source video file
+        output_dir: Directory to save preview frames (e.g., previews/)
+        video_id: Video ID for naming files
+        count: Number of frames to extract (default: 3, FIXED)
+        
+    Returns:
+        List of preview frame filenames (e.g., ["video_123_preview_1.jpg", ...])
+        
+    Example:
+        >>> frames = generate_preview_frames("video.mp4", "previews/", 123)
+        >>> print(frames)
+        ['video_123_preview_1.jpg', 'video_123_preview_2.jpg', 'video_123_preview_3.jpg']
+    """
+    try:
+        # Get video duration
+        duration = get_video_duration(video_path)
+        if not duration or duration < 1:
+            logger.warning(f"Invalid video duration: {duration}")
+            return []
+        
+        # Ensure output directory exists
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Extract exactly 3 frames at 33%, 66%, 90%
+        percentages = [0.33, 0.66, 0.90]
+        timestamps = [duration * p for p in percentages]
+        
+        # Generate preview frames
+        preview_frames = []
+        for i, timestamp in enumerate(timestamps, 1):
+            filename = f"video_{video_id}_preview_{i}.jpg"
+            output_path = os.path.join(output_dir, filename)
+            
+            # CRITICAL: Clean FFmpeg command - NO TEXT OVERLAYS, NO FILTERS except scaling
+            cmd = [
+                'ffmpeg',
+                '-ss', str(timestamp),  # Seek to timestamp (fast seek before input)
+                '-i', video_path,
+                '-vframes', '1',  # Extract 1 frame
+                '-q:v', '2',  # Highest quality (2 is best)
+                '-vf', 'scale=1280:-1',  # HD quality, maintain aspect ratio
+                '-y',  # Overwrite
+                output_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30
+            )
+            
+            if result.returncode == 0 and os.path.exists(output_path):
+                preview_frames.append(filename)
+                logger.info(f"Preview frame {i} generated at {timestamp:.2f}s ({percentages[i-1]*100:.0f}%): {filename}")
+            else:
+                logger.error(f"Failed to generate preview {i}: {result.stderr.decode()}")
+        
+        return preview_frames
+        
+    except subprocess.TimeoutExpired:
+        logger.error("FFmpeg timeout during preview generation")
+        return []
+    except Exception as e:
+        logger.error(f"Error generating preview frames: {e}")
+        return []
+
+
+
 def generate_thumbnail_opencv(video_path: str, thumbnail_path: str, frame_number: int = 30) -> bool:
     """
     Generate a thumbnail using OpenCV (alternative to FFmpeg).
@@ -240,6 +316,46 @@ def cleanup_file(file_path: str) -> None:
             logger.info(f"Cleaned up file: {file_path}")
     except Exception as e:
         logger.error(f"Error cleaning up file {file_path}: {e}")
+
+
+def cleanup_preview_frames(video_id: int, preview_dir: str) -> None:
+    """
+    Delete all preview frames for a specific video ID.
+    Used after upload completion to save storage space.
+    
+    Args:
+        video_id: Video ID whose preview frames should be deleted
+        preview_dir: Directory containing preview frames
+        
+    Example:
+        >>> cleanup_preview_frames(123, "previews/")
+        # Deletes: video_123_preview_1.jpg through video_123_preview_5.jpg
+    """
+    try:
+        pattern = f"video_{video_id}_preview_*.jpg"
+        preview_path = Path(preview_dir)
+        
+        if not preview_path.exists():
+            logger.warning(f"Preview directory does not exist: {preview_dir}")
+            return
+        
+        # Find and delete all matching preview frames
+        deleted_count = 0
+        for frame_file in preview_path.glob(pattern):
+            try:
+                frame_file.unlink()
+                deleted_count += 1
+                logger.info(f"Deleted preview frame: {frame_file.name}")
+            except Exception as e:
+                logger.error(f"Failed to delete {frame_file.name}: {e}")
+        
+        if deleted_count > 0:
+            logger.info(f"Cleanup complete: Deleted {deleted_count} preview frames for video {video_id}")
+        else:
+            logger.warning(f"No preview frames found for video {video_id}")
+            
+    except Exception as e:
+        logger.error(f"Error during preview frame cleanup for video {video_id}: {e}")
 
 
 def get_video_metadata(video_path: str) -> dict:
