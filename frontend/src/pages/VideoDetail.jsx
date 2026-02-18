@@ -26,6 +26,7 @@ const VideoDetail = () => {
     const [video, setVideo] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(null);
     const [recLoading, setRecLoading] = useState(false);
     const viewTracked = useRef(false);
 
@@ -58,8 +59,10 @@ const VideoDetail = () => {
                 });
 
                 setRecommendations(recResponse.data);
+                setRecommendations(recResponse.data);
             } catch (error) {
                 console.error('Failed to fetch video details:', error);
+                setFetchError(error.message + (error.response ? ` (Status: ${error.response.status})` : ''));
             } finally {
                 setLoading(false);
                 setRecLoading(false);
@@ -105,7 +108,13 @@ const VideoDetail = () => {
         );
     }
 
-    if (!video) return <div className="pt-24 text-center">Video not found</div>;
+    if (!video) return (
+        <div className="pt-24 text-center">
+            <h1 className="text-2xl font-bold mb-4">Video not found</h1>
+            <p className="text-white/50 mb-2">Requested ID: {id}</p>
+            {fetchError && <p className="text-red-500 font-mono text-sm bg-black/50 inline-block px-4 py-2 rounded">{fetchError}</p>}
+        </div>
+    );
 
     // Rotating Fallback Strategy to demonstrate dynamic playback
     const EVEN_FALLBACK = "https://vjs.zencdn.net/v/oceans.mp4";
