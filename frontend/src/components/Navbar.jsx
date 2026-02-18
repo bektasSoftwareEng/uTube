@@ -164,7 +164,7 @@ const Navbar = () => {
                         </div>
                     ) : (
                         <div className="flex items-center gap-3">
-                            <Link to="/login" className="hidden xs:block text-sm font-bold text-white/60 hover:text-white transition-colors">
+                            <Link to="/login" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
                                 Sign In
                             </Link>
                             <Link to="/register">
