@@ -21,7 +21,7 @@ from pathlib import Path
 import uuid
 
 from backend.database import get_db
-from backend.database.models import User
+from backend.database.models import User, Subscription
 from backend.core.config import AVATARS_DIR
 from backend.core.security import (
     hash_password,
@@ -353,21 +353,16 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 @router.put("/me", response_model=UserResponse)
 def update_user_profile(
-<<<<<<< Updated upstream
     username: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     current_password: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
-=======
-    user_data: UserUpdate,
->>>>>>> Stashed changes
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Update current user's profile information.
-<<<<<<< Updated upstream
     
     Handles:
     - Username update (uniqueness check)
@@ -384,18 +379,11 @@ def update_user_profile(
     # 1. Update Username
     if username and username != current_user.username:
         existing_username = db.query(User).filter(User.username == username).first()
-=======
-    """
-    # Check if username is being updated and is unique
-    if user_data.username and user_data.username != current_user.username:
-        existing_username = db.query(User).filter(User.username == user_data.username).first()
->>>>>>> Stashed changes
         if existing_username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already taken"
             )
-<<<<<<< Updated upstream
         current_user.username = username
         
     # 2. Update Email
@@ -406,19 +394,11 @@ def update_user_profile(
                 detail="Invalid email format"
             )
         existing_email = db.query(User).filter(User.email == email).first()
-=======
-        current_user.username = user_data.username
-    
-    # Check if email is being updated and is unique
-    if user_data.email and user_data.email != current_user.email:
-        existing_email = db.query(User).filter(User.email == user_data.email).first()
->>>>>>> Stashed changes
         if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-<<<<<<< Updated upstream
         current_user.email = email
         
     # 3. Update Password
@@ -436,30 +416,11 @@ def update_user_profile(
             )
 
         is_valid, error_msg = validate_password_strength(password)
-=======
-        current_user.email = user_data.email
-    
-    # Check password update
-    if user_data.new_password:
-        # Verify old password if provided (optional but recommended security practice)
-        # For simplicity in this iteration, we might skip old password check or enforce it
-        # Let's verify password if 'password' field is provided as current_password
-        if user_data.password:
-            if not verify_password(user_data.password, current_user.password_hash):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Incorrect current password"
-                )
-        
-        # Validate strength
-        is_valid, error_msg = validate_password_strength(user_data.new_password)
->>>>>>> Stashed changes
         if not is_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_msg
             )
-<<<<<<< Updated upstream
         current_user.password_hash = hash_password(password)
         
     # 4. Update Profile Picture
@@ -500,14 +461,6 @@ def update_user_profile(
             detail=f"Database update failed: {str(e)}"
         )
         
-=======
-        
-        current_user.password_hash = hash_password(user_data.new_password)
-    
-    db.commit()
-    db.refresh(current_user)
-    
->>>>>>> Stashed changes
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -517,8 +470,6 @@ def update_user_profile(
     )
 
 
-<<<<<<< Updated upstream
-=======
 # ============================================================================
 # Subscription Routes
 # ============================================================================
@@ -603,7 +554,6 @@ def get_user_subscriptions(
     ]
 
 
->>>>>>> Stashed changes
 # ============================================================================
 # Optional: Password Reset (Placeholder)
 # ============================================================================
