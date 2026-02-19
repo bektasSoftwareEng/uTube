@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
 import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
@@ -34,6 +34,32 @@ const VideoDetail = () => {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subLoading, setSubLoading] = useState(false);
 
+    // ── Like State ──
+    const [likeCount, setLikeCount] = useState(0);
+    const [userHasLiked, setUserHasLiked] = useState(false);
+    const [likeLoading, setLikeLoading] = useState(false);
+    const [dislikeCount, setDislikeCount] = useState(0);
+    const [userHasDisliked, setUserHasDisliked] = useState(false);
+    const [dislikeLoading, setDislikeLoading] = useState(false);
+
+    // ── Comment State ──
+    const [comments, setComments] = useState([]);
+    const [newComment, setNewComment] = useState('');
+    const [commentLoading, setCommentLoading] = useState(false);
+    const [commentSubmitting, setCommentSubmitting] = useState(false);
+    const [commentCount, setCommentCount] = useState(0);
+
+    // Get current user from localStorage
+    const getCurrentUser = () => {
+        try {
+            const data = localStorage.getItem(UTUBE_USER);
+            return data ? JSON.parse(data) : null;
+        } catch { return null; }
+    };
+
+    // ══════════════════════════════════════════════════
+    // Fetch Video Data
+    // ══════════════════════════════════════════════════
     useEffect(() => {
         const fetchVideoData = async () => {
             setLoading(true);
@@ -43,9 +69,9 @@ const VideoDetail = () => {
                 const videoResponse = await ApiClient.get(`/videos/${id}`);
                 const videoData = videoResponse.data;
                 setVideo(videoData);
+                setLikeCount(videoData.like_count || 0);
                 setLoading(false); // Show main content as soon as it's ready
 
-                // Task 1 & 2: Explicit View Tracking (Senior Requirements)
                 // Use Ref Guard to prevent StrictMode double-triggers
                 if (!viewTracked.current) {
                     viewTracked.current = true;
@@ -62,14 +88,7 @@ const VideoDetail = () => {
                     }
                 });
 
-                // Task 3: Robust Sidebar Filtering
-                const validRecs = recResponse.data.filter(v =>
-                    v.status === 'published' &&
-                    v.visibility === 'public' &&
-                    !v.is_processing // Double check flag if exists
-                );
-
-                setRecommendations(validRecs);
+                setRecommendations(recResponse.data);
             } catch (error) {
                 console.error('Failed to fetch video details:', error);
                 setFetchError(error.message + (error.response ? ` (Status: ${error.response.status})` : ''));
@@ -81,15 +100,13 @@ const VideoDetail = () => {
 
         const incrementView = async (videoId) => {
             try {
-                // Task 2: Silent Failure
                 await ApiClient.post(`/videos/${videoId}/view`);
-                // Task 1: Seamless UI Sync
                 setVideo(prev => ({
                     ...prev,
                     view_count: (prev?.view_count || 0) + 1
                 }));
             } catch (err) {
-                // Fail silently as per Senior Requirement
+                // Fail silently
                 console.warn('View tracking failed silently:', err);
             }
         };
@@ -103,14 +120,57 @@ const VideoDetail = () => {
         };
     }, [id]);
 
+    // ══════════════════════════════════════════════════
+    // Fetch Like/Dislike Status (requires auth)
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        const fetchLikeStatus = async () => {
+            const user = getCurrentUser();
+            if (!user) return;
+
+            try {
+                const res = await ApiClient.get(`/videos/${id}/likes`);
+                setLikeCount(res.data.like_count);
+                setUserHasLiked(res.data.user_has_liked);
+                setDislikeCount(res.data.dislike_count);
+                setUserHasDisliked(res.data.user_has_disliked);
+            } catch (err) {
+                console.warn('Could not fetch like status:', err);
+            }
+        };
+
+        if (video) fetchLikeStatus();
+    }, [video, id]);
+
+    // ══════════════════════════════════════════════════
+    // Fetch Comments
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        const fetchComments = async () => {
+            setCommentLoading(true);
+            try {
+                const res = await ApiClient.get(`/videos/${id}/comments`);
+                setComments(res.data);
+                setCommentCount(res.data.length);
+            } catch (err) {
+                console.warn('Could not fetch comments:', err);
+            } finally {
+                setCommentLoading(false);
+            }
+        };
+
+        if (video) fetchComments();
+    }, [video, id]);
+
+    // ══════════════════════════════════════════════════
+    // Check Subscription
+    // ══════════════════════════════════════════════════
     useEffect(() => {
         const checkSubscription = async () => {
             const userStr = localStorage.getItem(UTUBE_USER);
             if (!userStr || !video?.author) return;
 
             try {
-                // Optimization: In a real app, use a specific endpoint like /auth/is_subscribed/{id}
-                // For now, we reuse the list endpoint as per plan
                 const response = await ApiClient.get('/auth/subscriptions');
                 const subs = response.data;
                 const isSub = subs.some(sub => sub.id === video.author.id);
@@ -124,6 +184,10 @@ const VideoDetail = () => {
             checkSubscription();
         }
     }, [video]);
+
+    // ══════════════════════════════════════════════════
+    // Handlers
+    // ══════════════════════════════════════════════════
 
     const handleSubscribe = async () => {
         const userStr = localStorage.getItem(UTUBE_USER);
@@ -151,6 +215,116 @@ const VideoDetail = () => {
             setSubLoading(false);
         }
     };
+
+    const handleToggleLike = async () => {
+        const user = getCurrentUser();
+        if (!user) {
+            alert("Please sign in to like videos");
+            return;
+        }
+
+        setLikeLoading(true);
+        try {
+            const res = await ApiClient.post(`/videos/${id}/like`);
+            setLikeCount(res.data.like_count);
+            setUserHasLiked(res.data.user_has_liked);
+            setDislikeCount(res.data.dislike_count);
+            setUserHasDisliked(res.data.user_has_disliked);
+        } catch (err) {
+            console.error("Like toggle failed:", err);
+        } finally {
+            setLikeLoading(false);
+        }
+    };
+
+    const handleToggleDislike = async () => {
+        const user = getCurrentUser();
+        if (!user) {
+            alert("Please sign in to dislike videos");
+            return;
+        }
+
+        setDislikeLoading(true);
+        try {
+            const res = await ApiClient.post(`/videos/${id}/dislike`);
+            setLikeCount(res.data.like_count);
+            setUserHasLiked(res.data.user_has_liked);
+            setDislikeCount(res.data.dislike_count);
+            setUserHasDisliked(res.data.user_has_disliked);
+        } catch (err) {
+            console.error("Dislike toggle failed:", err);
+        } finally {
+            setDislikeLoading(false);
+        }
+    };
+
+    const handleSubmitComment = async (e) => {
+        e.preventDefault();
+        const user = getCurrentUser();
+        if (!user) {
+            alert("Please sign in to comment");
+            return;
+        }
+        if (!newComment.trim()) return;
+
+        setCommentSubmitting(true);
+        try {
+            const res = await ApiClient.post(`/videos/${id}/comments`, { text: newComment.trim() });
+            setComments(prev => [res.data, ...prev]);
+            setCommentCount(prev => prev + 1);
+            setNewComment('');
+        } catch (err) {
+            console.error("Comment submission failed:", err);
+            alert(err.response?.data?.detail || "Failed to post comment");
+        } finally {
+            setCommentSubmitting(false);
+        }
+    };
+
+    const handleCommentLike = async (commentId) => {
+        const user = getCurrentUser();
+        if (!user) { alert('Please sign in to like comments'); return; }
+        try {
+            const res = await ApiClient.post(`/comments/${commentId}/like`);
+            setComments(prev => prev.map(c => c.id === commentId ? {
+                ...c,
+                like_count: res.data.like_count,
+                dislike_count: res.data.dislike_count,
+                user_has_liked: res.data.user_has_liked,
+                user_has_disliked: res.data.user_has_disliked
+            } : c));
+        } catch (err) { console.error('Comment like failed:', err); }
+    };
+
+    const handleCommentDislike = async (commentId) => {
+        const user = getCurrentUser();
+        if (!user) { alert('Please sign in to dislike comments'); return; }
+        try {
+            const res = await ApiClient.post(`/comments/${commentId}/dislike`);
+            setComments(prev => prev.map(c => c.id === commentId ? {
+                ...c,
+                like_count: res.data.like_count,
+                dislike_count: res.data.dislike_count,
+                user_has_liked: res.data.user_has_liked,
+                user_has_disliked: res.data.user_has_disliked
+            } : c));
+        } catch (err) { console.error('Comment dislike failed:', err); }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        try {
+            await ApiClient.delete(`/comments/${commentId}`);
+            setComments(prev => prev.filter(c => c.id !== commentId));
+            setCommentCount(prev => prev - 1);
+        } catch (err) {
+            console.error("Delete comment failed:", err);
+            alert(err.response?.data?.detail || "Failed to delete comment");
+        }
+    };
+
+    // ══════════════════════════════════════════════════
+    // Render: Loading & Error States
+    // ══════════════════════════════════════════════════
 
     if (loading && !video) {
         return (
@@ -185,7 +359,7 @@ const VideoDetail = () => {
         ? getValidUrl(video.video_url, DYNAMIC_FALLBACK)
         : DYNAMIC_FALLBACK;
 
-
+    const currentUser = getCurrentUser();
 
     return (
         <motion.div
@@ -255,12 +429,32 @@ const VideoDetail = () => {
 
                         <div className="flex items-center gap-2">
                             <div className="flex bg-white/10 rounded-full overflow-hidden glass">
-                                <button className="flex items-center gap-2 hover:bg-white/10 px-4 py-2 transition-colors border-r border-white/10">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.757c1.27 0 2.456.69 3.056 1.769L23 13.5V20a2 2 0 01-2 2H3a2 2 0 01-2-2v-6.5l1.187-1.731C2.787 10.69 3.973 10 5.243 10H10V4a2 2 0 012-2h0a2 2 0 012 2v6z" /></svg>
-                                    <span className="text-sm font-bold">{video.like_count || 0}</span>
+                                {/* ── Like Button (wired to API) ── */}
+                                <button
+                                    onClick={handleToggleLike}
+                                    disabled={likeLoading}
+                                    className={`flex items-center gap-2 px-4 py-2 transition-colors border-r border-white/10 ${userHasLiked
+                                        ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                                        : 'hover:bg-white/10 text-white'
+                                        }`}
+                                >
+                                    <svg className="w-5 h-5" fill={userHasLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21H4a1 1 0 01-1-1v-8a1 1 0 011-1h3l2.31-6.925A1.847 1.847 0 0111.153 3 2.847 2.847 0 0114 5.847V10z" />
+                                    </svg>
+                                    <span className="text-sm font-bold">{likeCount}</span>
                                 </button>
-                                <button className="flex items-center gap-2 hover:bg-white/10 px-4 py-2 transition-colors">
-                                    <svg className="w-5 h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.757c1.27 0 2.456.69 3.056 1.769L23 13.5V20a2 2 0 01-2 2H3a2 2 0 01-2-2v-6.5l1.187-1.731C2.787 10.69 3.973 10 5.243 10H10V4a2 2 0 012-2h0a2 2 0 012 2v6z" /></svg>
+                                {/* ── Dislike Button (wired to API) ── */}
+                                <button
+                                    onClick={handleToggleDislike}
+                                    disabled={dislikeLoading}
+                                    className={`flex items-center gap-2 px-4 py-2 transition-colors ${userHasDisliked
+                                        ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                                        : 'hover:bg-white/10 text-white'
+                                        }`}
+                                >
+                                    <svg className="w-5 h-5 rotate-180" fill={userHasDisliked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21H4a1 1 0 01-1-1v-8a1 1 0 011-1h3l2.31-6.925A1.847 1.847 0 0111.153 3 2.847 2.847 0 0114 5.847V10z" />
+                                    </svg>
                                 </button>
                             </div>
                             <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-2 rounded-full transition-colors glass font-bold text-sm">
@@ -280,19 +474,153 @@ const VideoDetail = () => {
                         </p>
                     </div>
 
-                    {/* Placeholder Comment Section */}
+                    {/* ══════════════════════════════════════════════════ */}
+                    {/* Comment Section (fully wired to API) */}
+                    {/* ══════════════════════════════════════════════════ */}
                     <div className="mt-8">
-                        <h3 className="text-xl font-bold mb-6">Comments</h3>
-                        <div className="flex gap-4 mb-8">
-                            <div className="w-10 h-10 rounded-full bg-surface shrink-0 border border-white/10" />
+                        <h3 className="text-xl font-bold mb-6">
+                            {commentCount} Comment{commentCount !== 1 ? 's' : ''}
+                        </h3>
+
+                        {/* Comment Input */}
+                        <form onSubmit={handleSubmitComment} className="flex gap-4 mb-8">
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-surface shrink-0 border border-white/10">
+                                {currentUser ? (
+                                    <img
+                                        src={getAvatarUrl(currentUser.profile_image, currentUser.username)}
+                                        alt={currentUser.username}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-white/5" />
+                                )}
+                            </div>
                             <div className="flex-1">
                                 <input
                                     type="text"
-                                    placeholder="Add a comment..."
-                                    className="w-full bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all placeholder:text-white/20"
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                    placeholder={currentUser ? "Add a comment..." : "Sign in to comment..."}
+                                    disabled={!currentUser}
+                                    className="w-full bg-transparent border-b border-white/20 pb-2 focus:outline-none focus:border-white transition-all placeholder:text-white/20 disabled:opacity-40"
                                 />
+                                <AnimatePresence>
+                                    {newComment.trim() && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="flex justify-end gap-2 mt-3"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => setNewComment('')}
+                                                className="px-4 py-1.5 rounded-full text-sm font-bold text-white/60 hover:bg-white/10 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={commentSubmitting}
+                                                className="px-4 py-1.5 rounded-full text-sm font-bold bg-primary text-white hover:bg-primary/80 transition-colors disabled:opacity-50"
+                                            >
+                                                {commentSubmitting ? "Posting..." : "Comment"}
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                        </div>
+                        </form>
+
+                        {/* Comment List */}
+                        {commentLoading ? (
+                            <div className="space-y-6">
+                                {[...Array(3)].map((_, i) => (
+                                    <div key={i} className="flex gap-4 animate-pulse">
+                                        <div className="w-10 h-10 rounded-full bg-white/5 shrink-0" />
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-3 bg-white/5 rounded w-1/4" />
+                                            <div className="h-3 bg-white/5 rounded w-3/4" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : comments.length > 0 ? (
+                            <div className="space-y-6">
+                                <AnimatePresence>
+                                    {comments.map((comment) => (
+                                        <motion.div
+                                            key={comment.id}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, x: -50 }}
+                                            className="flex gap-4 group"
+                                        >
+                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-surface shrink-0 border border-white/10">
+                                                <img
+                                                    src={getAvatarUrl(comment.author?.profile_image, comment.author?.username)}
+                                                    alt={comment.author?.username}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${comment.author?.username || 'U'}&background=random&color=fff&size=40`; }}
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-bold text-sm">@{comment.author?.username || 'Unknown'}</span>
+                                                    <span className="text-white/30 text-xs">
+                                                        {new Date(comment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-white/80 text-sm leading-relaxed break-words">{comment.text}</p>
+
+                                                {/* Comment Actions: Like / Dislike / Delete */}
+                                                <div className="flex items-center gap-1 mt-2">
+                                                    {/* Like */}
+                                                    <button
+                                                        onClick={() => handleCommentLike(comment.id)}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${comment.user_has_liked
+                                                                ? 'text-primary bg-primary/10'
+                                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                                            }`}
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill={comment.user_has_liked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21H4a1 1 0 01-1-1v-8a1 1 0 011-1h3l2.31-6.925A1.847 1.847 0 0111.153 3 2.847 2.847 0 0114 5.847V10z" />
+                                                        </svg>
+                                                        {comment.like_count > 0 && <span>{comment.like_count}</span>}
+                                                    </button>
+                                                    {/* Dislike */}
+                                                    <button
+                                                        onClick={() => handleCommentDislike(comment.id)}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${comment.user_has_disliked
+                                                                ? 'text-primary bg-primary/10'
+                                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                                            }`}
+                                                    >
+                                                        <svg className="w-3.5 h-3.5 rotate-180" fill={comment.user_has_disliked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21H4a1 1 0 01-1-1v-8a1 1 0 011-1h3l2.31-6.925A1.847 1.847 0 0111.153 3 2.847 2.847 0 0114 5.847V10z" />
+                                                        </svg>
+                                                        {comment.dislike_count > 0 && <span>{comment.dislike_count}</span>}
+                                                    </button>
+                                                    {/* Delete — own comments only */}
+                                                    {currentUser && currentUser.id === comment.author?.id && (
+                                                        <button
+                                                            onClick={() => handleDeleteComment(comment.id)}
+                                                            className="ml-2 text-xs text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center">
+                                <p className="text-white/30 text-sm">No comments yet. Be the first to comment!</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -319,9 +647,6 @@ const VideoDetail = () => {
                                                     e.target.src = THUMBNAIL_FALLBACK;
                                                 }}
                                             />
-
-
-
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-xs xl:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">

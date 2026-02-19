@@ -9,7 +9,7 @@ Models:
 - Comment: User comments on videos
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint, JSON, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -172,8 +172,13 @@ class Video(Base):
     
     @property
     def like_count(self):
-        """Get the number of likes for this video."""
-        return self.likes.count()
+        """Get the number of likes (not dislikes) for this video."""
+        return self.likes.filter(Like.is_dislike == False).count()
+    
+    @property
+    def dislike_count(self):
+        """Get the number of dislikes for this video."""
+        return self.likes.filter(Like.is_dislike == True).count()
     
     def get_tags_list(self):
         """Parse tags string into a list."""
@@ -223,6 +228,13 @@ class Comment(Base):
         back_populates="comments"
     )
     
+    comment_likes = relationship(
+        "CommentLike",
+        back_populates="comment",
+        cascade="all, delete-orphan",
+        lazy="dynamic"
+    )
+    
     def __repr__(self):
         return f"<Comment(id={self.id}, author_id={self.user_id}, video_id={self.video_id}, text='{self.text[:30]}...')>"
 
@@ -249,6 +261,9 @@ class Like(Base):
     # Foreign Keys
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    
+    # Like vs Dislike
+    is_dislike = Column(Boolean, default=False, nullable=False)  # False=like, True=dislike
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -303,3 +318,35 @@ class Subscription(Base):
     
     def __repr__(self):
         return f"<Subscription(id={self.id}, follower_id={self.follower_id}, following_id={self.following_id})>"
+
+
+class CommentLike(Base):
+    """
+    CommentLike model for tracking user likes/dislikes on comments (YouTube-style).
+    
+    Attributes:
+        id: Primary key
+        user_id: Foreign key to User
+        comment_id: Foreign key to Comment
+        is_dislike: False=like, True=dislike
+        created_at: Timestamp
+    """
+    __tablename__ = "comment_likes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=False)
+    is_dislike = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    comment = relationship("Comment", back_populates="comment_likes")
+    
+    # Unique constraint: one reaction per user per comment
+    __table_args__ = (
+        UniqueConstraint('user_id', 'comment_id', name='unique_user_comment_like'),
+    )
+    
+    def __repr__(self):
+        return f"<CommentLike(id={self.id}, user={self.user_id}, comment={self.comment_id}, dislike={self.is_dislike})>"

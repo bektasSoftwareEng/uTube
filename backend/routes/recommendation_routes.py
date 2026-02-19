@@ -14,7 +14,7 @@ from typing import List, Optional
 from collections import Counter
 
 from backend.database import get_db
-from backend.database.models import User, Video, Like
+from backend.database.models import User, Video, Like, Subscription
 from backend.routes.auth_routes import get_current_user, get_optional_user
 from backend.routes.video_routes import VideoListResponse, AuthorResponse, get_thumbnail_url
 
@@ -117,4 +117,58 @@ def get_recommended_feed(
             )
         )
         for video in ordered_videos
+    ]
+
+
+@router.get("/subscriptions", response_model=List[VideoListResponse])
+def get_subscription_feed(
+    limit: int = 20,
+    skip: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get latest videos from channels the current user is subscribed to.
+    Returns videos sorted by upload date (newest first).
+    """
+    if limit > 50:
+        limit = 50
+
+    # Get IDs of users the current user follows
+    followed_ids = db.query(Subscription.following_id).filter(
+        Subscription.follower_id == current_user.id
+    ).all()
+    followed_ids = [fid[0] for fid in followed_ids]
+
+    if not followed_ids:
+        return []
+
+    # Get latest videos from those users
+    videos = (
+        db.query(Video)
+        .filter(Video.user_id.in_(followed_ids))
+        .order_by(Video.upload_date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        VideoListResponse(
+            id=video.id,
+            title=video.title,
+            thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
+            view_count=video.view_count,
+            upload_date=video.upload_date.isoformat(),
+            duration=video.duration,
+            category=video.category,
+            like_count=video.like_count,
+            author=AuthorResponse(
+                id=video.author.id,
+                username=video.author.username,
+                profile_image=video.author.profile_image,
+                video_count=video.author.videos.count()
+            )
+        )
+        for video in videos
     ]
