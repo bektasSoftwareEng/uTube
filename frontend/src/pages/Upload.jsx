@@ -4,6 +4,36 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_TOKEN } from '../utils/authConstants';
 
+// --- XSS SECURITY HELPERS ---
+
+/**
+ * Sanitize user text input: strip HTML tags and script injection attempts.
+ * React auto-escapes in JSX, but this protects data BEFORE it enters state.
+ */
+const sanitizeText = (input) => {
+    if (typeof input !== 'string') return input;
+    return input
+        .replace(/<[^>]*>/g, '')           // Strip HTML tags
+        .replace(/javascript:/gi, '')      // Strip javascript: protocol
+        .replace(/on\w+\s*=/gi, '')        // Strip inline event handlers
+        .trim();
+};
+
+/**
+ * Validate that a URL is safe for media src attributes.
+ * Only allows blob:, http:, https:, and relative paths.
+ */
+const isSafeMediaUrl = (url) => {
+    if (!url) return false;
+    if (url.startsWith('blob:')) return true;
+    if (url.startsWith('http://') || url.startsWith('https://')) return true;
+    if (url.startsWith('/')) return true; // Relative paths
+    return false;
+};
+
+/** Safe fallback image for broken preview frames (avoids inline SVG data URI) */
+const FALLBACK_THUMBNAIL = '/assets/fallback_preview.svg';
+
 // --- CUSTOM COMPONENTS ---
 
 const CustomSelect = ({ label, options, value, onChange, placeholder }) => {
@@ -216,7 +246,10 @@ const Upload = () => {
     }, [navigate, videoPreview, thumbnailPreview]);
 
     const updateFormData = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        // Sanitize text fields to prevent XSS at input time
+        const textFields = ['title', 'description'];
+        const sanitizedValue = textFields.includes(field) ? sanitizeText(value) : value;
+        setFormData(prev => ({ ...prev, [field]: sanitizedValue }));
     };
 
     const [tagInput, setTagInput] = useState('');
@@ -224,7 +257,10 @@ const Upload = () => {
         if (e.key === 'Enter') {
             e.preventDefault();
             if (tagInput.trim() && formData.tags.length < 10) {
-                updateFormData('tags', [...formData.tags, tagInput.trim()]);
+                const sanitizedTag = sanitizeText(tagInput);
+                if (sanitizedTag) {
+                    updateFormData('tags', [...formData.tags, sanitizedTag]);
+                }
                 setTagInput('');
             }
         }
@@ -643,7 +679,7 @@ const Upload = () => {
                                                 className={`relative group cursor-pointer aspect-video bg-black rounded-xl overflow-hidden border-2 transition-all duration-300 shadow-xl ${selectedPreviewFrame === frame ? 'border-[#e50914] z-10 shadow-[0_0_20px_rgba(229,9,20,0.5)] ring-2 ring-[#e50914]/30' : 'border-transparent hover:border-gray-600 hover:shadow-2xl hover:shadow-red-900/40'} ${index === 0 ? 'origin-left' : (index === previewFrames.length - 1 ? 'origin-right' : 'origin-center')}`}
                                             >
                                                 <div className="absolute top-0 left-0 w-full bg-black/80 text-white text-[10px] text-center py-1 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest font-bold z-20">Click to Select</div>
-                                                <img src={`http://localhost:8000/storage/uploads/previews/${frame.split('/').pop()}?t=${uploadTimestamp}`} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23111" width="100" height="100"/%3E%3Ctext fill="%23444" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EPreview Error%3C/text%3E%3C/svg%3E'; }} />
+                                                <img src={`http://localhost:8000/storage/uploads/previews/${encodeURIComponent(frame.split('/').pop())}?t=${uploadTimestamp}`} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_THUMBNAIL; }} />
                                                 {selectedPreviewFrame === frame && <div className="absolute inset-0 bg-[#e50914]/20 flex items-center justify-center backdrop-blur-[1px]"><div className="bg-[#e50914] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg transform scale-110 border border-white/20">Selected</div></div>}
                                                 <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-[10px] text-white font-mono opacity-0 group-hover:opacity-100 transition-opacity border border-white/10">FRAME {index + 1}</div>
                                             </motion.div>
