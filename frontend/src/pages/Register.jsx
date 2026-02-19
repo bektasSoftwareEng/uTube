@@ -67,8 +67,8 @@ const Register = () => {
         }
 
         try {
-            // FIX: Added trailing slash to prevent 307 redirect
-            await ApiClient.post('/auth/register/', {
+            // FIX: Removed trailing slash to prevent 307 redirect that drops POST body
+            await ApiClient.post('/auth/register', {
                 username: sanitize(formData.username),
                 email: sanitize(formData.email),
                 password: formData.password
