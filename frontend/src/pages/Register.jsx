@@ -1,10 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 
+// ── Validation helpers (mirrors backend security.py rules) ──
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+const PASSWORD_RULES = [
+    { test: (p) => p.length >= 8, label: 'At least 8 characters' },
+    { test: (p) => /[A-Z]/.test(p), label: 'One uppercase letter' },
+    { test: (p) => /[a-z]/.test(p), label: 'One lowercase letter' },
+    { test: (p) => /[0-9]/.test(p), label: 'One digit' },
+];
+
 const Register = () => {
-    // FIX: Initialize all fields to avoid "uncontrolled to controlled" warning
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -14,49 +23,56 @@ const Register = () => {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [touched, setTouched] = useState({});
     const navigate = useNavigate();
 
-    // Simple Input Sanitization for XSS Prevention
     const sanitize = (str) => str.replace(/[<>]/g, '');
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+
+    const handleBlur = (e) => {
+        setTouched({ ...touched, [e.target.name]: true });
+    };
+
+    // ── Computed validation state ──
+    const emailValid = EMAIL_REGEX.test(formData.email);
+    const passwordChecks = useMemo(
+        () => PASSWORD_RULES.map((r) => ({ ...r, passed: r.test(formData.password) })),
+        [formData.password]
+    );
+    const passwordValid = passwordChecks.every((c) => c.passed);
+    const confirmValid = formData.password === formData.confirmPassword && formData.confirmPassword.length > 0;
+    const usernameValid = formData.username.length >= 3 && formData.username.length <= 50;
+    const formValid = emailValid && passwordValid && confirmValid && usernameValid;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
+        // Mark all fields as touched to show any remaining errors
+        setTouched({ username: true, email: true, password: true, confirmPassword: true });
 
-        if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            setLoading(false);
+        if (!formValid) {
+            setError('Please fix the highlighted errors before submitting.');
             return;
         }
 
+        setLoading(true);
+        setError('');
+
         try {
-            // FIX: Added trailing slash to prevent 307 redirect
             await ApiClient.post('/auth/register/', {
                 username: sanitize(formData.username),
                 email: sanitize(formData.email),
                 password: formData.password
             });
-
             navigate('/login');
-
         } catch (err) {
             console.error("Registration Error:", err);
-
-            // FIX: Robust Error Handling for FastAPI 422 (List of objects)
             let errorMessage = 'Registration failed. Try a different username or email.';
-
             if (err.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 if (Array.isArray(detail)) {
-                    // Extract first error message from list
                     errorMessage = detail[0]?.msg || JSON.stringify(detail);
                 } else if (typeof detail === 'string') {
                     errorMessage = detail;
@@ -64,7 +80,6 @@ const Register = () => {
                     errorMessage = JSON.stringify(detail);
                 }
             }
-
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -74,12 +89,29 @@ const Register = () => {
     // Animation Variants
     const containerVariants = {
         hidden: { opacity: 0, scale: 0.95 },
-        visible: {
-            opacity: 1,
-            scale: 1,
-            transition: { duration: 0.4, ease: "easeOut" }
-        },
+        visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" } },
         exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
+    };
+
+    // ── Small reusable components ──
+    const FieldHint = ({ show, valid, text }) => (
+        <AnimatePresence>
+            {show && (
+                <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={`text-xs mt-1.5 ml-1 font-medium ${valid ? 'text-green-400' : 'text-red-400'}`}
+                >
+                    {valid ? '✓ ' : '✗ '}{text}
+                </motion.p>
+            )}
+        </AnimatePresence>
+    );
+
+    const inputBorderClass = (fieldName, isValid) => {
+        if (!touched[fieldName] || formData[fieldName] === '') return 'border-gray-800';
+        return isValid ? 'border-green-500/50' : 'border-red-500/50';
     };
 
     return (
@@ -120,6 +152,7 @@ const Register = () => {
                 </AnimatePresence>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
+                    {/* Username */}
                     <div className="space-y-2 group">
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Username
@@ -130,11 +163,18 @@ const Register = () => {
                             required
                             value={formData.username}
                             onChange={handleChange}
-                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
+                            onBlur={handleBlur}
+                            className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="Create a unique username"
+                        />
+                        <FieldHint
+                            show={touched.username && formData.username.length > 0}
+                            valid={usernameValid}
+                            text={usernameValid ? 'Looks good' : 'Must be 3–50 characters'}
                         />
                     </div>
 
+                    {/* Email */}
                     <div className="space-y-2 group">
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Email Address
@@ -145,11 +185,18 @@ const Register = () => {
                             required
                             value={formData.email}
                             onChange={handleChange}
-                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
+                            onBlur={handleBlur}
+                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="name@example.com"
+                        />
+                        <FieldHint
+                            show={touched.email && formData.email.length > 0}
+                            valid={emailValid}
+                            text={emailValid ? 'Valid email' : 'Enter a valid email address'}
                         />
                     </div>
 
+                    {/* Password */}
                     <div className="space-y-2 group">
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Password
@@ -160,11 +207,31 @@ const Register = () => {
                             required
                             value={formData.password}
                             onChange={handleChange}
-                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
+                            onBlur={handleBlur}
+                            className={`w-full bg-white/5 border ${inputBorderClass('password', passwordValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="••••••••"
                         />
+                        {/* Password strength checklist */}
+                        <AnimatePresence>
+                            {(touched.password || formData.password.length > 0) && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="mt-2 ml-1 space-y-1"
+                                >
+                                    {passwordChecks.map((rule) => (
+                                        <div key={rule.label} className={`flex items-center gap-2 text-xs font-medium transition-colors ${rule.passed ? 'text-green-400' : 'text-white/30'}`}>
+                                            <span className="text-[10px]">{rule.passed ? '●' : '○'}</span>
+                                            {rule.label}
+                                        </div>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
+                    {/* Confirm Password */}
                     <div className="space-y-2 group">
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Confirm Password
@@ -175,14 +242,20 @@ const Register = () => {
                             required
                             value={formData.confirmPassword}
                             onChange={handleChange}
-                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
+                            onBlur={handleBlur}
+                            className={`w-full bg-white/5 border ${inputBorderClass('confirmPassword', confirmValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="••••••••"
+                        />
+                        <FieldHint
+                            show={touched.confirmPassword && formData.confirmPassword.length > 0}
+                            valid={confirmValid}
+                            text={confirmValid ? 'Passwords match' : 'Passwords do not match'}
                         />
                     </div>
 
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || !formValid}
                         className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_5px_20px_rgba(229,9,20,0.3)] hover:shadow-[0_5px_30px_rgba(229,9,20,0.5)] mt-6 text-lg tracking-wide"
                     >
                         {loading ? (
