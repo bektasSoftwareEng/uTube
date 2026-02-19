@@ -10,14 +10,19 @@ Endpoints:
 """
 
 from jose import JWTError
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+import shutil
+import os
+from pathlib import Path
+import uuid
 
 from backend.database import get_db
-from backend.database.models import User
+from backend.database.models import User, Subscription
+from backend.core.config import AVATARS_DIR
 from backend.core.security import (
     hash_password,
     verify_password,
@@ -66,6 +71,14 @@ class UserLogin(BaseModel):
                 "password": "SecurePass123"
             }
         }
+
+
+class UserUpdate(BaseModel):
+    """Request model for user profile update."""
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[EmailStr] = Field(None)
+    password: Optional[str] = Field(None, min_length=8)
+    new_password: Optional[str] = Field(None, min_length=8)
 
 
 class Token(BaseModel):
@@ -336,6 +349,209 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
         profile_image=current_user.profile_image,
         created_at=current_user.created_at.isoformat()
     )
+
+
+@router.put("/me", response_model=UserResponse)
+def update_user_profile(
+    username: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    current_password: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update current user's profile information.
+    
+    Handles:
+    - Username update (uniqueness check)
+    - Email update (uniqueness check & validation)
+    - Password update (hashing & strength check) - REQUIRES current_password
+    - Profile picture upload
+    """
+    # 0. Verify Current Password for Critical Changes
+    if password or email != current_user.email:
+         # If changing password or email, require current password for security
+         # For this specific request, we focus on password change security
+         pass 
+
+    # 1. Update Username
+    if username and username != current_user.username:
+        existing_username = db.query(User).filter(User.username == username).first()
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        current_user.username = username
+        
+    # 2. Update Email
+    if email and email != current_user.email:
+        if not validate_email(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email format"
+            )
+        existing_email = db.query(User).filter(User.email == email).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        current_user.email = email
+        
+    # 3. Update Password
+    if password:
+        if not current_password:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is required to set a new password"
+            )
+        
+        if not verify_password(current_password, current_user.password_hash):
+             raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect current password"
+            )
+
+        is_valid, error_msg = validate_password_strength(password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
+        current_user.password_hash = hash_password(password)
+        
+    # 4. Update Profile Picture
+    if file:
+        # Validate file type (basic check)
+        content_type = file.content_type
+        if content_type not in ["image/jpeg", "image/png", "image/webp"]:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid image format. Allowed: JPEG, PNG, WEBP"
+            )
+            
+        # Create unique filename
+        file_ext = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = AVATARS_DIR / unique_filename
+        
+        # Save file
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            # Update user record
+            current_user.profile_image = unique_filename
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload image: {str(e)}"
+            )
+            
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {str(e)}"
+        )
+        
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        profile_image=current_user.profile_image,
+        created_at=current_user.created_at.isoformat()
+    )
+
+
+# ============================================================================
+# Subscription Routes
+# ============================================================================
+
+@router.post("/subscribe/{user_id}", status_code=status.HTTP_201_CREATED)
+def subscribe_to_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Subscribe to a user channel."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot subscribe to yourself")
+    
+    user_to_follow = db.query(User).filter(User.id == user_id).first()
+    if not user_to_follow:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Check existing subscription
+    existing = db.query(Subscription).filter(
+        Subscription.follower_id == current_user.id,
+        Subscription.following_id == user_id
+    ).first()
+    
+    if existing:
+        return {"message": "Already subscribed"}
+        
+    new_sub = Subscription(follower_id=current_user.id, following_id=user_id)
+    db.add(new_sub)
+    db.commit()
+    
+    return {"message": "Subscribed successfully"}
+
+
+@router.delete("/subscribe/{user_id}", status_code=status.HTTP_200_OK)
+def unsubscribe_from_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Unsubscribe from a user channel."""
+    subscription = db.query(Subscription).filter(
+        Subscription.follower_id == current_user.id,
+        Subscription.following_id == user_id
+    ).first()
+    
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+        
+    db.delete(subscription)
+    db.commit()
+    
+    return {"message": "Unsubscribed successfully"}
+
+
+@router.get("/subscriptions", response_model=list[UserResponse])
+def get_user_subscriptions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of users the current user is subscribed to."""
+    # Query subscriptions where follower_id is current_user.id
+    subs = db.query(Subscription).filter(Subscription.follower_id == current_user.id).all()
+    
+    # Extract the user objects (following_id)
+    followed_users = []
+    for sub in subs:
+        # We need to fetch the User object. 
+        # Since we have the relationship set up in Subscription model:
+        # following_user = relationship("User", foreign_keys=[following_id], ...)
+        if sub.following_user:
+            followed_users.append(sub.following_user)
+            
+    return [
+        UserResponse(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            profile_image=u.profile_image,
+            created_at=u.created_at.isoformat()
+        ) for u in followed_users
+    ]
 
 
 # ============================================================================

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
 import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
+import { UTUBE_USER } from '../utils/authConstants';
 
 
 
@@ -28,7 +29,10 @@ const VideoDetail = () => {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
     const [recLoading, setRecLoading] = useState(false);
+
     const viewTracked = useRef(false);
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [subLoading, setSubLoading] = useState(false);
 
     useEffect(() => {
         const fetchVideoData = async () => {
@@ -98,6 +102,55 @@ const VideoDetail = () => {
             viewTracked.current = false;
         };
     }, [id]);
+
+    useEffect(() => {
+        const checkSubscription = async () => {
+            const userStr = localStorage.getItem(UTUBE_USER);
+            if (!userStr || !video?.author) return;
+
+            try {
+                // Optimization: In a real app, use a specific endpoint like /auth/is_subscribed/{id}
+                // For now, we reuse the list endpoint as per plan
+                const response = await ApiClient.get('/auth/subscriptions');
+                const subs = response.data;
+                const isSub = subs.some(sub => sub.id === video.author.id);
+                setIsSubscribed(isSub);
+            } catch (error) {
+                console.error("Failed to check subscription:", error);
+            }
+        };
+
+        if (video) {
+            checkSubscription();
+        }
+    }, [video]);
+
+    const handleSubscribe = async () => {
+        const userStr = localStorage.getItem(UTUBE_USER);
+        if (!userStr) {
+            alert("Please sign in to subscribe");
+            return;
+        }
+        if (!video?.author) return;
+
+        setSubLoading(true);
+        try {
+            if (isSubscribed) {
+                await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
+                setIsSubscribed(false);
+            } else {
+                await ApiClient.post(`/auth/subscribe/${video.author.id}`);
+                setIsSubscribed(true);
+            }
+        } catch (error) {
+            console.error("Subscription action failed:", error);
+            if (error.response?.data?.detail === "Already subscribed") {
+                setIsSubscribed(true);
+            }
+        } finally {
+            setSubLoading(false);
+        }
+    };
 
     if (loading && !video) {
         return (
@@ -186,8 +239,15 @@ const VideoDetail = () => {
                                 <p className="font-bold">{video.author?.username}</p>
                                 <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
                             </div>
-                            <button className="ml-4 bg-white text-black px-6 py-2 rounded-full font-bold text-sm hover:bg-white/90 transition-all active:scale-95">
-                                Subscribe
+                            <button
+                                onClick={handleSubscribe}
+                                disabled={subLoading}
+                                className={`ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isSubscribed
+                                    ? "bg-white/10 text-white hover:bg-white/20 border border-white/5"
+                                    : "bg-white text-black hover:bg-white/90"
+                                    }`}
+                            >
+                                {subLoading ? "..." : isSubscribed ? "Subscribed" : "Subscribe"}
                             </button>
                         </div>
 

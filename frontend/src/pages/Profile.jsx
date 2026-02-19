@@ -3,10 +3,13 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
 import { getAvatarUrl } from '../utils/urlHelper';
+import ApiClient from '../utils/ApiClient';
+import { Link } from 'react-router-dom';
 
 const Profile = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
+    const [subscriptions, setSubscriptions] = useState([]);
 
     useEffect(() => {
         try {
@@ -20,6 +23,20 @@ const Profile = () => {
             navigate('/login');
         }
     }, [navigate]);
+
+    useEffect(() => {
+        const fetchSubscriptions = async () => {
+            if (!user) return;
+            try {
+                const response = await ApiClient.get('/auth/subscriptions');
+                setSubscriptions(response.data);
+            } catch (error) {
+                console.error('Failed to fetch subscriptions:', error);
+            }
+        };
+
+        fetchSubscriptions();
+    }, [user]);
 
     const handleLogout = () => {
         localStorage.removeItem(UTUBE_TOKEN);
@@ -78,7 +95,10 @@ const Profile = () => {
                             </div>
 
                             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                                <button className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all border border-white/5 flex items-center justify-center gap-2 group">
+                                <button
+                                    onClick={() => navigate('/edit-profile')}
+                                    className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all border border-white/5 flex items-center justify-center gap-2 group"
+                                >
                                     <svg className="w-5 h-5 text-white/60 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                     </svg>
@@ -125,7 +145,7 @@ const Profile = () => {
                         className="glass rounded-3xl p-8 border border-white/10"
                     >
                         <h3 className="text-xl font-bold mb-4">Account Stats</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 mb-8">
                             <div className="bg-white/5 rounded-xl p-4">
                                 <p className="text-2xl font-black">0</p>
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Subscribers</p>
@@ -135,6 +155,29 @@ const Profile = () => {
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Total Views</p>
                             </div>
                         </div>
+
+                        <h3 className="text-xl font-bold mb-4">Subscribed Channels</h3>
+                        {subscriptions.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {subscriptions.map(sub => (
+                                    <div key={sub.id} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-colors">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-black">
+                                            <img
+                                                src={getAvatarUrl(sub.profile_image, sub.username)}
+                                                alt={sub.username}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-sm truncate">{sub.username}</p>
+                                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Subscribed</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-white/40 text-sm">You haven't subscribed to anyone yet.</p>
+                        )}
                     </motion.div>
                 </div>
             </div>
