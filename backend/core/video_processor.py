@@ -20,6 +20,7 @@ from backend.core.config import (
     VIDEOS_DIR,
     THUMBNAILS_DIR,
     TEMP_DIR,
+    TEMP_UPLOADS_DIR,
     ALLOWED_VIDEO_FORMATS,
     MAX_VIDEO_SIZE_MB
 )
@@ -199,8 +200,26 @@ def generate_preview_frames(video_path: str, output_dir: str, video_id: int, cou
         ['video_123_preview_1.jpg', 'video_123_preview_2.jpg', 'video_123_preview_3.jpg']
     """
     try:
-        # Get video duration
-        duration = get_video_duration(video_path)
+        # Validate video path - Check TEMP/STAGING first!
+        src_path = Path(video_path)
+        if not src_path.exists():
+            # Try finding it in TEMP_UPLOADS_DIR
+            temp_path = TEMP_UPLOADS_DIR / video_path
+            if temp_path.exists():
+                src_path = temp_path
+                logger.info(f"Video found in TEMP staging: {src_path}")
+            else:
+                 # Try finding it in VIDEOS_DIR (Permanent)
+                perm_path = VIDEOS_DIR / video_path
+                if perm_path.exists():
+                    src_path = perm_path
+                    logger.info(f"Video found in VIDEOS storage: {src_path}")
+                else:
+                    logger.error(f"Video file not found: {video_path}")
+                    return []
+        
+        # Get video duration using resolved path
+        duration = get_video_duration(str(src_path))
         if not duration or duration < 1:
             logger.warning(f"Invalid video duration: {duration}")
             return []
@@ -222,7 +241,7 @@ def generate_preview_frames(video_path: str, output_dir: str, video_id: int, cou
             cmd = [
                 'ffmpeg',
                 '-ss', str(timestamp),  # Seek to timestamp (fast seek before input)
-                '-i', video_path,
+                '-i', str(src_path),
                 '-vframes', '1',  # Extract 1 frame
                 '-q:v', '2',  # Highest quality (2 is best)
                 '-vf', 'scale=1280:-1',  # HD quality, maintain aspect ratio

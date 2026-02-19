@@ -58,8 +58,14 @@ const VideoDetail = () => {
                     }
                 });
 
-                setRecommendations(recResponse.data);
-                setRecommendations(recResponse.data);
+                // Task 3: Robust Sidebar Filtering
+                const validRecs = recResponse.data.filter(v =>
+                    v.status === 'published' &&
+                    v.visibility === 'public' &&
+                    !v.is_processing // Double check flag if exists
+                );
+
+                setRecommendations(validRecs);
             } catch (error) {
                 console.error('Failed to fetch video details:', error);
                 setFetchError(error.message + (error.response ? ` (Status: ${error.response.status})` : ''));

@@ -53,20 +53,16 @@ const Navbar = () => {
         setIsMenuOpen(false);
         window.location.href = '/';
     };
-
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5 h-16 sm:h-20 flex items-center px-4 sm:px-8">
             <div className="flex items-center justify-between w-full max-w-[1800px] mx-auto">
                 {/* Logo Section */}
-                <div className="flex items-center gap-4 sm:gap-8">
-                    <Link to="/" className="flex items-center gap-2 group">
-                        <motion.div
-                            whileHover={{ rotate: -10, scale: 1.1 }}
-                            className="w-28 sm:w-32"
-                        >
-                            <img src="/utube.png" alt="uTube" className="w-full h-auto object-contain drop-shadow-[0_0_10px_rgba(255,0,0,0.5)]" />
-                        </motion.div>
-
+                <div className="flex items-center gap-4 sm:gap-8 relative z-10">
+                    <Link to="/" className="flex items-center gap-2 group relative">
+                        {/* Static Logo (Restored) */}
+                        <div className="w-28 sm:w-32 relative z-20 transform transition-transform duration-300 group-hover:scale-105">
+                            <img src="/utube.png" alt="uTube" className="w-full h-auto object-contain drop-shadow-md" />
+                        </div>
                     </Link>
                 </div>
 

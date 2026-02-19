@@ -6,13 +6,12 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Upload from './pages/Upload'
 import Profile from './pages/Profile'
-
+// ...
 
 function App() {
     console.log('App: Initializing main layout...');
     return (
         <div className="min-h-screen text-white">
-
             <Navbar />
             <main>
                 <Routes>

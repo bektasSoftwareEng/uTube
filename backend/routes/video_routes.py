@@ -83,6 +83,8 @@ class VideoListResponse(BaseModel):
     category: Optional[str] = None
     tags: List[str] = []  # Phase 5: Recommendation-ready
     like_count: int = 0
+    status: str = "published"
+    visibility: str = "public"
 
     class Config:
         from_attributes = True
@@ -122,7 +124,7 @@ def get_video_url(filename: str, is_temp: bool = False) -> str:
 
 def get_thumbnail_url(filename: str) -> str:
     """Generate full URL for thumbnail file."""
-    if not filename:
+    if not filename or filename == "default_thumbnail.png":
         return "/storage/uploads/thumbnails/default_thumbnail.png"
     return f"/storage/uploads/thumbnails/{filename}"
 
@@ -265,6 +267,7 @@ async def upload_video(
             category=category,
             tags=tags_list, # SQLAlchemy handles this if type is JSON, or we might need json.dumps if Text
             visibility='private', 
+            status='processing', # Initial status
             scheduled_at=scheduled_datetime,
             video_filename=video_filename,
             thumbnail_filename=thumbnail_filename,
@@ -333,8 +336,10 @@ def get_all_videos(
     
     query = db.query(Video)
     now = datetime.utcnow()
+    # Filter for PUBLIC and PUBLISHED videos only
     query = query.filter(
         Video.visibility == "public",
+        Video.status == "published", # Ensure processing is complete
         or_(Video.scheduled_at == None, Video.scheduled_at <= now)
     )
     
@@ -357,6 +362,8 @@ def get_all_videos(
             category=video.category,
             tags=parse_tags(video.tags), # FIXED: Parse tags here
             like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,
@@ -448,7 +455,9 @@ def update_video(
     if update_data.scheduled_at is not None:
         video.scheduled_at = datetime.fromisoformat(update_data.scheduled_at) if update_data.scheduled_at else None
     
-    # MOVE FROM STAGING TO PROD
+    # Auto-update status to 'published' when visibility becomes public
+    if new_visibility == 'public':
+        video.status = 'published'
     if new_visibility == 'public':
         temp_video_path = TEMP_UPLOADS_DIR / video.video_filename
         perm_video_path = VIDEOS_DIR / video.video_filename
@@ -489,6 +498,10 @@ def update_video(
             deleted_count = 0
             for preview_file in PREVIEWS_DIR.glob(preview_pattern):
                 try:
+                    # EXTRA SAFETY: Do not delete if it matches the new thumbnail filename (shouldn't happen due to move, but safe is better)
+                    if preview_file.name == video.thumbnail_filename:
+                        continue
+                        
                     os.remove(str(preview_file))
                     deleted_count += 1
                 except Exception as e:
@@ -517,6 +530,8 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
             category=video.category,
             tags=parse_tags(video.tags), # FIXED
             like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,

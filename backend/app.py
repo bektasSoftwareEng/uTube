@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
+from backend.services.cleanup_service import cleanup_stuck_uploads
 
 # Create FastAPI application
 app = FastAPI(
@@ -33,7 +34,7 @@ app = FastAPI(
 # Configure CORS - Allow all for development to fix 403/CORS issues
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +59,13 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 def startup_event():
     """Initialize database and ensure directories exist."""
     init_db()
+    
+    # Run Cleanup Task (Fail stuck videos)
+    try:
+        cleanup_stuck_uploads()
+    except Exception as e:
+        print(f"[WARNING] Startup cleanup failed: {e}")
+
     # Ensure storage directories from config exist
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)

@@ -107,6 +107,8 @@ def get_recommended_feed(
             duration=video.duration,
             category=video.category,
             like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,

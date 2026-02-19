@@ -13,7 +13,7 @@ const Home = () => {
     useEffect(() => {
         const fetchVideos = async () => {
             try {
-                const response = await ApiClient.get('/videos');
+                const response = await ApiClient.get('/videos/');
                 let videoData = response.data;
                 // Removed temporary duplication logic for authentic data display
                 setVideos(videoData);

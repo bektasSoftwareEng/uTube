@@ -137,6 +137,9 @@ class Video(Base):
     view_count = Column(Integer, default=0, nullable=False, index=True)  # Indexed for trending
     duration = Column(Integer, nullable=True)  # Duration in seconds
     
+    # Status (processing, published, failed)
+    status = Column(String(20), default="processing", nullable=False, index=True)
+
     # Timestamps
     upload_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
