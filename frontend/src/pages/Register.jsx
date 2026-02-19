@@ -60,7 +60,14 @@ const Register = () => {
         setLoading(true);
         setError('');
 
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
+            setLoading(false);
+            return;
+        }
+
         try {
+            // FIX: Added trailing slash to prevent 307 redirect
             await ApiClient.post('/auth/register/', {
                 username: sanitize(formData.username),
                 email: sanitize(formData.email),

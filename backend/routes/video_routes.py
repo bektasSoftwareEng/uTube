@@ -59,7 +59,7 @@ class VideoUploadResponse(BaseModel):
     """Response model for video upload."""
     id: int
     title: str
-    description: Optional[str]
+    description: Optional[str] = None
     video_url: str
     thumbnail_url: str
     view_count: int
@@ -470,6 +470,13 @@ def update_video(
                     print(f"[MOVE] Video moved from TEMP to VIDEOS: {video.video_filename}")
                 except Exception as e:
                     print(f"[MOVE ERROR] Failed to move video: {e}")
+            # POST-PUBLISH: Also clean up any remaining temp source
+            if temp_video_path.exists():
+                try:
+                    os.remove(str(temp_video_path))
+                    print(f"[CLEANUP] Deleted temp source: {video.video_filename}")
+                except Exception as e:
+                    print(f"[CLEANUP WARNING] Could not delete temp source: {e}")
     
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None

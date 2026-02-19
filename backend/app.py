@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
-from backend.services.cleanup_service import cleanup_stuck_uploads
+from backend.services.cleanup_service import startup_cleanup
 
 # Create FastAPI application
 app = FastAPI(
@@ -60,9 +60,9 @@ def startup_event():
     """Initialize database and ensure directories exist."""
     init_db()
     
-    # Run Cleanup Task (Fail stuck videos)
+    # Run full storage cleanup (stuck uploads, orphaned files, temp wipe)
     try:
-        cleanup_stuck_uploads()
+        startup_cleanup()
     except Exception as e:
         print(f"[WARNING] Startup cleanup failed: {e}")
 
@@ -70,7 +70,7 @@ def startup_event():
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] {APP_NAME} v{APP_VERSION} started successfully!")
-    print(f"[INFO] Storage/Uploads directories initialized")
+    print("[INFO] Storage/Uploads directories initialized")
     print(f"[INFO] Saving to: {UPLOADS_DIR}")
     print(f"[INFO] API documentation: http://localhost:8000{API_PREFIX}/docs")
 

@@ -441,7 +441,7 @@ if __name__ == "__main__":
     # Test filename generation
     print("\n1. Unique Filename Generation:")
     filename = generate_unique_filename("my_video.mp4")
-    print(f"   Original: my_video.mp4")
+    print("   Original: my_video.mp4")
     print(f"   Unique: {filename}")
     
     # Test file validation
