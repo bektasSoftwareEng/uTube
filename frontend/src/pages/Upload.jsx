@@ -18,9 +18,9 @@ const sanitizeText = (input) => {
     do {
         previous = sanitized;
         sanitized = sanitized
-            .replace(/<[^>]*>/g, '')                         // HTML Tags
-            .replace(/(?:javascript|data|vbscript):/gi, '')  // Protocols
-            .replace(/on\w+\s*=/gi, '')                      // Event Handlers
+            .replace(/<[^>]*>/g, '')                         // HTML Etiketlerini temizle
+            .replace(/(?:javascript|data|vbscript):/gi, '')  // Tehlikeli protokolleri temizle
+            .replace(/on\w*\s*=/gi, '')                      // Event Handler'ları temizle (+ yerine * kullanıldı)
             .trim();
     } while (sanitized !== previous);
     return sanitized;
@@ -183,6 +183,26 @@ const VideoWallBackground = ({ videoUrl }) => {
         }
     };
 
+    // 1. Define a helper to validate the URL
+    const getSafeUrl = (url) => {
+        if (!url || typeof url !== 'string') return '';
+
+        // Whitelist only safe protocols
+        const safeProtocols = ['http:', 'https:', 'blob:'];
+
+        try {
+            // Use the native URL constructor for robust parsing
+            const parsed = new URL(url, window.location.origin);
+            return safeProtocols.includes(parsed.protocol) ? url : '';
+        } catch (e) {
+            // If parsing fails, it's not a valid/safe URL
+            return '';
+        }
+    };
+
+    // 2. In your component, sanitize the source before rendering
+    const safeVideoSource = useMemo(() => getSafeUrl(videoSource), [videoSource]);
+
     return (
         <>
             {/* LAYER 0: VIDEO (Bottom) */}
@@ -190,11 +210,12 @@ const VideoWallBackground = ({ videoUrl }) => {
                 className="fixed inset-0 w-full h-full z-0 overflow-hidden"
                 style={{ background: 'radial-gradient(circle at top, #251010 0%, #0f0f0f 100%)' }} // Fallback
             >
-                {videoSource && isSafeMediaUrl(videoSource) && (
+                {/* 3. KISIM BURASI: videoSource yerine safeVideoSource kullanıyoruz */}
+                {safeVideoSource && (
                     <video
                         ref={videoRef}
-                        key={videoSource}
-                        src={videoSource}
+                        key={safeVideoSource} // Key değiştiğinde React videoyu güvenle yeniden yükler
+                        src={safeVideoSource} // CodeQL'in beklediği güvenli veri (Sink)
                         className="absolute inset-0 w-full h-full object-cover opacity-100"
                         autoPlay muted loop playsInline
                         onTimeUpdate={handleTimeUpdate}
