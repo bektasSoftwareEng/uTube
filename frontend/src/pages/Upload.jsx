@@ -7,32 +7,44 @@ import { UTUBE_TOKEN } from '../utils/authConstants';
 // --- XSS SECURITY HELPERS ---
 
 /**
- * Sanitize user text input: strip HTML tags and script injection attempts.
- * React auto-escapes in JSX, but this protects data BEFORE it enters state.
+ * Recursive sanitizer: strips HTML tags, dangerous protocols, and inline event handlers.
+ * Uses do...while loop to prevent recursive bypass attacks (e.g., "jav<script>ascript:").
+ * Keeps running until the output stabilizes (no more changes).
  */
 const sanitizeText = (input) => {
     if (typeof input !== 'string') return input;
-    return input
-        .replace(/<[^>]*>/g, '')           // Strip HTML tags
-        .replace(/javascript:/gi, '')      // Strip javascript: protocol
-        .replace(/on\w+\s*=/gi, '')        // Strip inline event handlers
-        .trim();
+    let sanitized = input;
+    let previous;
+    do {
+        previous = sanitized;
+        sanitized = sanitized
+            .replace(/<[^>]*>/g, '')                         // HTML Tags
+            .replace(/(?:javascript|data|vbscript):/gi, '')  // Protocols
+            .replace(/on\w+\s*=/gi, '')                      // Event Handlers
+            .trim();
+    } while (sanitized !== previous);
+    return sanitized;
 };
 
 /**
  * Validate that a URL is safe for media src attributes.
  * Only allows blob:, http:, https:, and relative paths.
+ * Blocks javascript:, data:, vbscript: and other dangerous protocols.
  */
 const isSafeMediaUrl = (url) => {
-    if (!url) return false;
+    if (!url || typeof url !== 'string') return false;
+    const trimmed = url.trim().toLowerCase();
+    // Block dangerous protocols explicitly
+    if (/^(?:javascript|vbscript):/i.test(trimmed)) return false;
+    // Allow safe protocols
     if (url.startsWith('blob:')) return true;
     if (url.startsWith('http://') || url.startsWith('https://')) return true;
     if (url.startsWith('/')) return true; // Relative paths
     return false;
 };
 
-/** Safe fallback image for broken preview frames (avoids inline SVG data URI) */
-const FALLBACK_THUMBNAIL = '/assets/fallback_preview.svg';
+/** Safe fallback for broken preview frames — 1px transparent grey, zero markup */
+const FALLBACK_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAIAAABEREQAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
 
 // --- CUSTOM COMPONENTS ---
 
@@ -178,7 +190,7 @@ const VideoWallBackground = ({ videoUrl }) => {
                 className="fixed inset-0 w-full h-full z-0 overflow-hidden"
                 style={{ background: 'radial-gradient(circle at top, #251010 0%, #0f0f0f 100%)' }} // Fallback
             >
-                {videoSource && (
+                {videoSource && isSafeMediaUrl(videoSource) && (
                     <video
                         ref={videoRef}
                         key={videoSource}
@@ -571,7 +583,7 @@ const Upload = () => {
                                     {formData.videoFile && videoPreview ? (
                                         <div className="bg-black/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm shadow-2xl">
                                             <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 mb-6 relative group">
-                                                <video ref={videoRef} src={videoPreview} controls onLoadedMetadata={handleMetadataLoaded} className="w-full h-full object-contain" />
+                                                {isSafeMediaUrl(videoPreview) && <video ref={videoRef} src={videoPreview} controls onLoadedMetadata={handleMetadataLoaded} className="w-full h-full object-contain" />}
                                             </div>
                                             <div className="flex flex-col md:flex-row gap-4 mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
                                                 <div className="flex-1"><p className="text-gray-400 text-xs uppercase tracking-wider font-bold mb-1">File Name</p><p className="text-white font-mono truncate">{formData.videoFile.name}</p></div>
@@ -649,7 +661,7 @@ const Upload = () => {
                                             <div className="sticky top-8 space-y-6">
                                                 <div className="bg-black/40 rounded-2xl overflow-hidden border border-gray-800 shadow-2xl backdrop-blur-sm group hover:border-gray-700 transition-colors">
                                                     <div className="aspect-video bg-black relative">
-                                                        {videoPreview && <video src={videoPreview} className="w-full h-full object-cover" controls />}
+                                                        {isSafeMediaUrl(videoPreview) && <video src={videoPreview} className="w-full h-full object-cover" controls />}
                                                         <div className="absolute top-2 right-2 bg-[#e50914] px-2 py-1 rounded text-[10px] text-white font-bold tracking-widest shadow-lg">PREVIEW</div>
                                                     </div>
                                                     <div className="p-5 space-y-4">
@@ -685,7 +697,7 @@ const Upload = () => {
                                             </motion.div>
                                         ))}
                                         <label className={`relative group cursor-pointer aspect-video bg-[#0a0a0a] rounded-xl overflow-hidden border-2 border-dashed border-gray-700 hover:border-[#e50914] transition-all duration-300 flex flex-col items-center justify-center hover:bg-[#111] shadow-inner ${thumbnailPreview ? 'border-solid border-[#e50914]' : ''} origin-right`}>
-                                            {thumbnailPreview ? (<><img src={thumbnailPreview} className="w-full h-full object-cover" alt="Custom" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"><span className="text-white font-bold bg-[#e50914] px-4 py-2 rounded-full shadow-lg transform hover:scale-105 transition-transform">Change Poster</span></div></>) : (<><div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-lg border border-gray-700 group-hover:border-[#e50914] group-hover:shadow-[0_0_15px_rgba(229,9,20,0.3)]"><span className="text-2xl text-gray-400 group-hover:text-white transition-colors font-bold">+</span></div><span className="text-sm text-gray-400 group-hover:text-white font-bold transition-colors uppercase tracking-wide">Upload Custom</span><span className="text-[10px] text-gray-600 mt-1">1280x720 recommended</span></>)}
+                                            {thumbnailPreview && isSafeMediaUrl(thumbnailPreview) ? (<><img src={thumbnailPreview} className="w-full h-full object-cover" alt="Custom" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"><span className="text-white font-bold bg-[#e50914] px-4 py-2 rounded-full shadow-lg transform hover:scale-105 transition-transform">Change Poster</span></div></>) : (<><div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-lg border border-gray-700 group-hover:border-[#e50914] group-hover:shadow-[0_0_15px_rgba(229,9,20,0.3)]"><span className="text-2xl text-gray-400 group-hover:text-white transition-colors font-bold">+</span></div><span className="text-sm text-gray-400 group-hover:text-white font-bold transition-colors uppercase tracking-wide">Upload Custom</span><span className="text-[10px] text-gray-600 mt-1">1280x720 recommended</span></>)}
                                             <input type="file" accept="image/*" onChange={handleThumbnailChange} className="hidden" />
                                         </label>
                                     </div>

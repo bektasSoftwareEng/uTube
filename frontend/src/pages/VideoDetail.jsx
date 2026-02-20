@@ -61,6 +61,26 @@ const VideoDetail = () => {
     // Fetch Video Data
     // ══════════════════════════════════════════════════
     useEffect(() => {
+        let pollInterval;
+
+        const fetchRecommendations = async (currentVideo) => {
+            try {
+                const recResponse = await ApiClient.get('/feed/recommended', {
+                    params: {
+                        author_id: currentVideo.author?.id,
+                        category: currentVideo.category,
+                        exclude_id: id,
+                        limit: 10
+                    }
+                });
+                // Double-safety: Filter on frontend too
+                const validRecs = recResponse.data.filter(v => v.status === 'published');
+                setRecommendations(validRecs);
+            } catch (error) {
+                console.error('Failed to fetch recommendations:', error);
+            }
+        };
+
         const fetchVideoData = async () => {
             setLoading(true);
             setRecLoading(true); // Reset sidebar state
@@ -78,22 +98,19 @@ const VideoDetail = () => {
                     incrementView(id);
                 }
 
-                // Fetch hybrid recommendations (80/20 split)
-                const recResponse = await ApiClient.get('/feed/recommended', {
-                    params: {
-                        author_id: videoData.author?.id,
-                        category: videoData.category,
-                        exclude_id: id,
-                        limit: 10
-                    }
-                });
+                // Initial Recommendation Fetch
+                await fetchRecommendations(videoData);
 
-                setRecommendations(recResponse.data);
+                // POLL Recommendations every 15s
+                pollInterval = setInterval(() => {
+                    fetchRecommendations(videoData);
+                }, 15000);
+
             } catch (error) {
                 console.error('Failed to fetch video details:', error);
                 setFetchError(error.message + (error.response ? ` (Status: ${error.response.status})` : ''));
-            } finally {
                 setLoading(false);
+            } finally {
                 setRecLoading(false);
             }
         };
@@ -117,6 +134,7 @@ const VideoDetail = () => {
         // Reset tracking on ID change
         return () => {
             viewTracked.current = false;
+            if (pollInterval) clearInterval(pollInterval);
         };
     }, [id]);
 
@@ -579,8 +597,8 @@ const VideoDetail = () => {
                                                     <button
                                                         onClick={() => handleCommentLike(comment.id)}
                                                         className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${comment.user_has_liked
-                                                                ? 'text-primary bg-primary/10'
-                                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                                            ? 'text-primary bg-primary/10'
+                                                            : 'text-white/30 hover:text-white/60 hover:bg-white/5'
                                                             }`}
                                                     >
                                                         <svg className="w-3.5 h-3.5" fill={comment.user_has_liked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -592,8 +610,8 @@ const VideoDetail = () => {
                                                     <button
                                                         onClick={() => handleCommentDislike(comment.id)}
                                                         className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${comment.user_has_disliked
-                                                                ? 'text-primary bg-primary/10'
-                                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                                            ? 'text-primary bg-primary/10'
+                                                            : 'text-white/30 hover:text-white/60 hover:bg-white/5'
                                                             }`}
                                                     >
                                                         <svg className="w-3.5 h-3.5 rotate-180" fill={comment.user_has_disliked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -636,31 +654,33 @@ const VideoDetail = () => {
                             <SidebarSkeleton />
                         ) : recommendations.length > 0 ? (
                             recommendations.map((rec) => (
-                                <div key={rec.id} className="cursor-pointer group">
-                                    <Link to={`/video/${rec.id}`} className="flex gap-3">
-                                        <div className="w-32 xl:w-40 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
-                                            <img
-                                                src={getValidUrl(rec.thumbnail_url, THUMBNAIL_FALLBACK)}
-                                                alt={rec.title}
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                                onError={(e) => {
-                                                    e.target.src = THUMBNAIL_FALLBACK;
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-xs xl:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                                                {rec.title}
-                                            </h3>
-                                            <p className="text-white/40 text-[10px] xl:text-[11px] mt-1 hover:text-white/60 transition-colors truncate">
-                                                {rec.author?.username}
-                                            </p>
-                                            <p className="text-white/40 text-[10px] xl:text-[11px]">
-                                                {rec.view_count.toLocaleString()} views
-                                            </p>
-                                        </div>
-                                    </Link>
-                                </div>
+                                rec.status === 'published' && (
+                                    <div key={rec.id} className="cursor-pointer group">
+                                        <Link to={`/video/${rec.id}`} className="flex gap-3">
+                                            <div className="w-32 xl:w-40 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
+                                                <img
+                                                    src={getValidUrl(rec.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                    alt={rec.title}
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                                    onError={(e) => {
+                                                        e.target.src = THUMBNAIL_FALLBACK;
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-bold text-xs xl:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                                                    {rec.title}
+                                                </h3>
+                                                <p className="text-white/40 text-[10px] xl:text-[11px] mt-1 hover:text-white/60 transition-colors truncate">
+                                                    {rec.author?.username}
+                                                </p>
+                                                <p className="text-white/40 text-[10px] xl:text-[11px]">
+                                                    {rec.view_count.toLocaleString()} views
+                                                </p>
+                                            </div>
+                                        </Link>
+                                    </div>
+                                )
                             ))
                         ) : (
                             <div className="py-12 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">

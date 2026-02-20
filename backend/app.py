@@ -20,7 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
-from backend.services.cleanup_service import startup_cleanup
+from backend.services.cleanup_service import startup_cleanup, cleanup_loop
+import asyncio
 
 # Create FastAPI application
 app = FastAPI(
@@ -56,7 +57,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Initialize database on startup
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Initialize database and ensure directories exist."""
     init_db()
     
@@ -65,6 +66,12 @@ def startup_event():
         startup_cleanup()
     except Exception as e:
         print(f"[WARNING] Startup cleanup failed: {e}")
+        
+    # Task 1: Start Periodic Background Cleanup
+    asyncio.create_task(cleanup_loop())
+
+    # Ensure storage directories from config exist
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
     # Ensure storage directories from config exist
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)

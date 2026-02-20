@@ -31,9 +31,14 @@ engine = create_engine(
 # SQLite doesn't enforce foreign keys by default
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
-    """Enable foreign key constraints for SQLite."""
+    """
+    Configure SQLite connection.
+    - Enable foreign key constraints
+    - Enable Write-Ahead Logging (WAL) for concurrency
+    """
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
 
 # Create SessionLocal class
@@ -89,12 +94,12 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def ensure_video_columns():
+def run_schema_migrations():
     """
-    Ensure the 'videos' table has all required columns.
+    Ensure tables have all required columns by running safe migrations.
     
     SQLAlchemy's create_all() only creates missing TABLES, not missing COLUMNS.
-    This function detects missing columns and adds them via ALTER TABLE.
+    This function detects missing columns in existing tables and adds them via ALTER TABLE.
     Safe to run repeatedly — it only adds columns that don't already exist.
     """
     import sqlite3
@@ -106,40 +111,43 @@ def ensure_video_columns():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Check if the videos table exists at all
+        # --- Migration 1: Videos Table ---
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
-        if not cursor.fetchone():
-            conn.close()
-            logger.info("'videos' table does not exist yet — will be created by create_all()")
-            return
-        
-        # Get existing column names
-        cursor.execute("PRAGMA table_info(videos)")
-        existing_columns = {row[1] for row in cursor.fetchall()}
-        
-        # Define columns that should exist (name, type, default)
-        required_columns = [
-            ("status",       "TEXT DEFAULT 'processing'"),
-            ("tags",         "TEXT"),           # JSON stored as TEXT in SQLite
-            ("visibility",   "TEXT DEFAULT 'public'"),
-            ("scheduled_at", "TEXT"),
-        ]
-        
-        added = []
-        for col_name, col_def in required_columns:
-            if col_name not in existing_columns:
-                alter_sql = f"ALTER TABLE videos ADD COLUMN {col_name} {col_def}"
-                cursor.execute(alter_sql)
-                added.append(col_name)
-                logger.info(f"  ✅ Added missing column: videos.{col_name}")
-        
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(videos)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            video_columns = [
+                ("status",       "TEXT DEFAULT 'processing'"),
+                ("tags",         "TEXT"),           # JSON stored as TEXT in SQLite
+                ("visibility",   "TEXT DEFAULT 'public'"),
+                ("scheduled_at", "TEXT"),
+            ]
+            
+            for col_name, col_def in video_columns:
+                if col_name not in existing_columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE videos ADD COLUMN {col_name} {col_def}")
+                        logger.info(f"  ✅ Added missing column: videos.{col_name}")
+                    except Exception as e:
+                        logger.warning(f"  ⚠️ Could not add videos.{col_name}: {e}")
+
+        # --- Migration 2: Likes Table ---
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='likes'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(likes)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            if "is_dislike" not in existing_columns:
+                try:
+                    cursor.execute("ALTER TABLE likes ADD COLUMN is_dislike BOOLEAN DEFAULT 0 NOT NULL")
+                    logger.info("  ✅ Added missing column: likes.is_dislike")
+                except Exception as e:
+                    logger.warning(f"  ⚠️ Could not add likes.is_dislike: {e}")
+
         conn.commit()
         conn.close()
-        
-        if added:
-            logger.info(f"Schema migration complete — added {len(added)} column(s): {', '.join(added)}")
-        else:
-            logger.info("Schema check passed — all video columns present")
+        logger.info("Schema migration checks complete.")
             
     except Exception as e:
         logger.error(f"Schema migration failed: {e}")
@@ -165,7 +173,7 @@ def init_db():
     
     logger.info("Initializing database...")
     Base.metadata.create_all(bind=engine)
-    ensure_video_columns()
+    run_schema_migrations()
     logger.info(f"Database initialized successfully at {DATABASE_URL}")
 
 

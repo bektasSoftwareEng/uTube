@@ -468,15 +468,26 @@ def update_video(
                 try:
                     shutil.move(str(temp_video_path), str(perm_video_path))
                     print(f"[MOVE] Video moved from TEMP to VIDEOS: {video.video_filename}")
+                    
+                    # Refinement: Explicit Move Verification
+                    # Ensure source is gone even if shutil.move failed to delete it (e.g. cross-fs copy)
+                    if temp_video_path.exists():
+                        try:
+                            os.remove(str(temp_video_path))
+                            print(f"[CLEANUP] Verified/Deleted temp source: {video.video_filename}")
+                        except Exception as e:
+                            print(f"[CLEANUP WARNING] Could not delete temp source: {e}")
+                            
                 except Exception as e:
                     print(f"[MOVE ERROR] Failed to move video: {e}")
-            # POST-PUBLISH: Also clean up any remaining temp source
-            if temp_video_path.exists():
-                try:
-                    os.remove(str(temp_video_path))
-                    print(f"[CLEANUP] Deleted temp source: {video.video_filename}")
-                except Exception as e:
-                    print(f"[CLEANUP WARNING] Could not delete temp source: {e}")
+
+        # Post-Publish Safety: If perm exists, temp should definitely be gone
+        if perm_video_path.exists() and temp_video_path.exists():
+             try:
+                os.remove(str(temp_video_path))
+                print(f"[CLEANUP] Deleted residue temp source: {video.video_filename}")
+             except Exception as e:
+                print(f"[CLEANUP WARNING] Residue cleanup failed: {e}")
     
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None
