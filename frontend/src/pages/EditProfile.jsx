@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
 import { getAvatarUrl } from '../utils/urlHelper';
+
+
 
 const EditProfile = () => {
     const navigate = useNavigate();
@@ -22,6 +25,11 @@ const EditProfile = () => {
 
     const [profileImage, setProfileImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
+
+    const safeProfilePreview = useMemo(() => {
+        const rawUrl = imagePreview || (user ? getAvatarUrl(user.profile_image, user.username) : '');
+        return DOMPurify.sanitize(rawUrl, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ });
+    }, [imagePreview, user]);
 
     useEffect(() => {
         try {
@@ -137,11 +145,13 @@ const EditProfile = () => {
                     <div className="flex flex-col items-center gap-4 mb-8">
                         <div className="relative group cursor-pointer">
                             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/10 bg-black shadow-xl group-hover:border-white/30 transition-colors">
-                                <img
-                                    src={imagePreview || getAvatarUrl(user.profile_image, user.username)}
-                                    alt="Profile"
-                                    className="w-full h-full object-cover"
-                                />
+                                {safeProfilePreview && (
+                                    <img
+                                        src={safeProfilePreview}
+                                        alt="Profile"
+                                        className="w-full h-full object-cover"
+                                    />
+                                )}
                             </div>
                             <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer">
                                 <span className="text-xs font-bold uppercase tracking-wider">Change</span>

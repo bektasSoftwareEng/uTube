@@ -6,3 +6,6 @@ storage/
 node_modules/
 dist/
 venv/
+# CodeQL Local Scans
+codeql-db/
+guvenlik-raporu.csv

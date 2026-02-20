@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_TOKEN, UTUBE_USER } from '../utils/authConstants';
 
 const Login = () => {
+    // FIX: Initialize with empty strings
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    // Simple Input Sanitization for XSS Prevention
+    // Simple Input Sanitization
     const sanitize = (str) => str.replace(/[<>]/g, '');
 
     const handleSubmit = async (e) => {
@@ -20,81 +21,106 @@ const Login = () => {
         setError('');
 
         try {
-            console.log('--- AUTH DEBUG START ---');
-            console.log('Login: Attempting auth...');
             const response = await ApiClient.post('/auth/login', {
                 email: sanitize(email),
                 password: password
             });
 
-            // LOUD DEBUGGER: Log exactly what came back
-            console.log('Login: Response data received', response.data);
+            const { access_token, user_id, username } = response.data;
 
-            let { access_token, user_id, username } = response.data;
+            if (access_token) {
+                // Storage
+                localStorage.setItem(UTUBE_TOKEN, access_token);
 
-            // Atomic Storage Step
-            localStorage.setItem(UTUBE_TOKEN, access_token);
+                // Construct basic user object
+                const userObj = {
+                    id: user_id,
+                    username: username,
+                    email: email, // Fallback
+                    profile_image: null
+                };
 
-            // MANUAL CONSTRUCTION: Backend returns limited info, so we build the object here
-            const manualUser = {
-                id: user_id,
-                username: username,
-                // Fallback values for UI consistency
-                email: email,
-                profile_image: null,
-                created_at: new Date().toISOString()
-            };
+                localStorage.setItem(UTUBE_USER, JSON.stringify(userObj));
 
-            if (manualUser) {
-                // Save session
-                localStorage.setItem(UTUBE_USER, JSON.stringify(manualUser));
-
-                // Notify other components
+                // Event & Redirect
                 window.dispatchEvent(new Event('authChange'));
-
-                // Instant Redirect for Production
-                window.location.href = '/';
-            } else {
-                setError('Could not retrieve user profile even with fallback.');
-                setLoading(false);
+                navigate('/');
             }
 
         } catch (err) {
-            console.error('Login Error:', err);
-            setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+            console.error("Login Error:", err);
+
+            // FIX: Robust Error Handling
+            let errorMessage = 'Login failed. Please check your credentials.';
+
+            if (err.response?.status === 401) {
+                errorMessage = 'Hatalı giriş veya hesap mevcut değil. Lütfen tekrar kayıt olun.';
+            } else if (err.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                if (Array.isArray(detail)) {
+                    errorMessage = detail[0]?.msg || JSON.stringify(detail);
+                } else if (typeof detail === 'string') {
+                    errorMessage = detail;
+                }
+            }
+
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
     };
 
+    // Animation Variants
+    const containerVariants = {
+        hidden: { opacity: 0, scale: 0.95 },
+        visible: {
+            opacity: 1,
+            scale: 1,
+            transition: { duration: 0.4, ease: "easeOut" }
+        },
+        exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
+    };
+
     return (
-        <div className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-neutral-900 to-black text-white">
+        <div className="min-h-screen flex items-center justify-center px-4 bg-[#0f0f0f] text-white selection:bg-[#e50914] selection:text-white relative overflow-hidden">
+            {/* Cinematic Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-[#251010] z-0" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-0 pointer-events-none" />
+
             <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-md p-8 rounded-3xl glass border border-white/10 shadow-2xl"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="w-full max-w-md p-8 rounded-3xl bg-black/40 border border-red-900/30 shadow-2xl backdrop-blur-xl relative z-10 ring-1 ring-white/5"
             >
+                {/* Header Section */}
                 <div className="text-center mb-8">
-                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center font-black text-2xl text-white italic mx-auto mb-4 italic">
-                        u
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#e50914] to-[#b2070f] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_20px_rgba(229,9,20,0.4)] transform rotate-3 hover:rotate-6 transition-transform duration-300">
+                        <span className="font-black text-3xl text-white italic tracking-tighter">u</span>
                     </div>
-                    <h2 className="text-3xl font-black tracking-tighter mb-2">Welcome Back</h2>
-                    <p className="text-white/40 text-sm">Sign in to your account</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Welcome Back</h2>
+                    <p className="text-gray-400 text-sm">Sign in to your creator account</p>
                 </div>
 
-                {error && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium"
-                    >
-                        {error}
-                    </motion.div>
-                )}
+                {/* Error Message */}
+                <AnimatePresence>
+                    {error && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="mb-6 p-4 rounded-2xl bg-red-900/20 border border-[#e50914]/50 text-red-200 text-sm font-medium flex items-center gap-3 backdrop-blur-sm shadow-[0_0_15px_rgba(229,9,20,0.1)]"
+                        >
+                            <span className="text-xl">⚠️</span>
+                            {error}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2 ml-1">
+                    <div className="space-y-2 group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Email Address
                         </label>
                         <input
@@ -102,13 +128,13 @@ const Login = () => {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:border-primary/50 transition-all text-white placeholder:text-white/20"
+                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
                             placeholder="name@example.com"
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2 ml-1">
+                    <div className="space-y-2 group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
                             Password
                         </label>
                         <input
@@ -116,7 +142,7 @@ const Login = () => {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:border-primary/50 transition-all text-white placeholder:text-white/20"
+                            className="w-full bg-white/5 border border-gray-800 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl"
                             placeholder="••••••••"
                         />
                     </div>
@@ -124,16 +150,21 @@ const Login = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-black py-4 rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20"
+                        className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_5px_20px_rgba(229,9,20,0.3)] hover:shadow-[0_5px_30px_rgba(229,9,20,0.5)] text-lg tracking-wide"
                     >
-                        {loading ? 'Authenticating...' : 'Sign In'}
+                        {loading ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Authenticating...
+                            </span>
+                        ) : 'Sign In'}
                     </button>
                 </form>
 
                 <div className="mt-8 text-center border-t border-white/5 pt-6">
-                    <p className="text-white/40 text-sm">
+                    <p className="text-gray-400 text-sm">
                         Don't have an account?{' '}
-                        <Link to="/register" className="text-primary font-black hover:underline">
+                        <Link to="/register" className="text-[#e50914] font-bold hover:text-red-400 transition-colors hover:underline decoration-2 underline-offset-4">
                             Join Now
                         </Link>
                     </p>

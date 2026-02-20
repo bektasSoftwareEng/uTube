@@ -94,7 +94,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
-    profile_image: Optional[str]
+    profile_image: Optional[str] = None
     created_at: str
     
     class Config:

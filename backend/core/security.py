@@ -178,21 +178,21 @@ if __name__ == "__main__":
     # Test password hashing
     password = "TestPassword123"
     hashed = hash_password(password)
-    print(f"\n1. Password Hashing:")
+    print("\n1. Password Hashing:")
     print(f"   Original: {password}")
     print(f"   Hashed: {hashed[:50]}...")
     print(f"   Verify correct: {verify_password(password, hashed)}")
     print(f"   Verify wrong: {verify_password('WrongPassword', hashed)}")
     
     # Test JWT token
-    print(f"\n2. JWT Token:")
+    print("\n2. JWT Token:")
     token = create_access_token({"sub": "user123", "username": "john_doe"})
     print(f"   Token: {token[:50]}...")
     decoded = decode_access_token(token)
     print(f"   Decoded: {decoded}")
     
     # Test password validation
-    print(f"\n3. Password Validation:")
+    print("\n3. Password Validation:")
     test_passwords = ["weak", "WeakPass", "weakpass123", "StrongPass123"]
     for pwd in test_passwords:
         valid, msg = validate_password_strength(pwd)
@@ -200,7 +200,7 @@ if __name__ == "__main__":
         print(f"   {status} '{pwd}': {msg if msg else 'Valid'}")
     
     # Test email validation
-    print(f"\n4. Email Validation:")
+    print("\n4. Email Validation:")
     test_emails = ["user@example.com", "invalid", "test@test", "valid.email@domain.co.uk"]
     for email in test_emails:
         valid = validate_email(email)

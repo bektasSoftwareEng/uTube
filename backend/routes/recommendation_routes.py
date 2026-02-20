@@ -51,7 +51,11 @@ def get_recommended_feed(
         if category:
             conditions.append(Video.category == category)
             
-        context_query = db.query(Video.id).filter(or_(*conditions))
+        context_query = db.query(Video.id).filter(
+            or_(*conditions),
+            Video.status == 'published',
+            Video.visibility == 'public'
+        )
         
         if exclude_id:
             context_query = context_query.filter(Video.id != exclude_id)
@@ -61,7 +65,10 @@ def get_recommended_feed(
         
     # 2. Discovery factor (20%)
     # Random videos from different categories
-    discovery_query = db.query(Video.id)
+    discovery_query = db.query(Video.id).filter(
+        Video.status == 'published',
+        Video.visibility == 'public'
+    )
     
     # Exclude current video and already picked contextual videos
     exclude_ids = recommended_ids.copy()
@@ -81,7 +88,11 @@ def get_recommended_feed(
     # 3. Fill remaining slots if needed (e.g. not enough different categories)
     if len(recommended_ids) < limit:
         remaining = limit - len(recommended_ids)
-        refill_query = db.query(Video.id).filter(~Video.id.in_(recommended_ids))
+        refill_query = db.query(Video.id).filter(
+            ~Video.id.in_(recommended_ids),
+            Video.status == 'published',
+            Video.visibility == 'public'
+        )
         if exclude_id:
             refill_query = refill_query.filter(Video.id != exclude_id)
             
@@ -107,6 +118,8 @@ def get_recommended_feed(
             duration=video.duration,
             category=video.category,
             like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,
