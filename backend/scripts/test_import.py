@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 try:
-    from backend.app import app
+    from backend.main import app
     print("Backend import successful")
 except Exception as e:
     print(f"Backend import failed: {e}")

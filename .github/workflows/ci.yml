@@ -9,6 +9,9 @@ jobs:
   backend-test:
     name: Backend Tests (Python)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
     - uses: actions/checkout@v4
@@ -17,12 +20,15 @@ jobs:
       with:
         python-version: 3.11
 
-    - run: pip install -r backend/requirements.txt
-    - run: pytest backend/
+    - run: pip install -r requirements.txt
+    - run: pytest
 
   frontend-test:
     name: Frontend Tests (Node)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
     - uses: actions/checkout@v4
@@ -31,7 +37,5 @@ jobs:
       with:
         node-version: 18
 
-    - run: |
-        cd frontend
-        npm install
-        npm test
+    - run: npm install
+    - run: npm test

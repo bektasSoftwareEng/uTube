@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useBlocker } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_TOKEN } from '../utils/authConstants';
+import DOMPurify from 'dompurify';
 
 // --- XSS SECURITY HELPERS ---
 
@@ -29,21 +30,6 @@ const sanitizeText = (input) => {
     return sanitized;
 };
 
-/**
- * Strict URL validator for media sinks.
- * Enforces http:, https:, and blob: protocols using the native URL constructor.
- * Blocks all other protocols naturally.
- */
-const getSafeUrl = (url) => {
-    if (!url || typeof url !== 'string') return '';
-    const safeProtocols = ['http:', 'https:', 'blob:'];
-    try {
-        const parsed = new URL(url, window.location.origin);
-        return safeProtocols.includes(parsed.protocol) ? url : '';
-    } catch (e) {
-        return '';
-    }
-};
 
 /** Safe fallback for broken preview frames — 1px transparent grey, zero markup */
 const FALLBACK_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAIAAABEREQAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
@@ -124,18 +110,18 @@ const CustomSelect = ({ label, options, value, onChange, placeholder }) => {
 
 const VideoWallBackground = ({ videoUrl }) => {
     const videoRef = useRef(null);
-    const [videoSource, setVideoSource] = useState('/assets/ambient/studio_live.mp4');
+    const [videoSource, setVideoSource] = useState('/static/ambient/studio_live.mp4');
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [videoPreview, setVideoPreview] = useState(null);
     // videoPreview değiştiğinde, onu güvenli protokolden geçirip yeni bir değişkene atıyoruz
-    const safeLocalPreview = useMemo(() => getSafeUrl(videoPreview), [videoPreview]);
+    const safeLocalPreview = useMemo(() => DOMPurify.sanitize(videoPreview, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ }), [videoPreview]);
 
     useEffect(() => {
         if (videoUrl) {
             setVideoSource(videoUrl);
         } else {
             // Default to local ambient file
-            setVideoSource('/assets/ambient/studio_live.mp4');
+            setVideoSource('/static/ambient/studio_live.mp4');
         }
     }, [videoUrl]);
 
@@ -173,7 +159,7 @@ const VideoWallBackground = ({ videoUrl }) => {
     };
 
     const handleVideoError = async (e) => {
-        if (videoSource === '/assets/ambient/studio_live.mp4') {
+        if (videoSource === '/static/ambient/studio_live.mp4') {
             try {
                 // Pathing: Include trailing slash
                 const response = await ApiClient.get('/videos/');
@@ -188,25 +174,10 @@ const VideoWallBackground = ({ videoUrl }) => {
         }
     };
 
-    // 1. Define a helper to validate the URL
-    const getSafeUrl = (url) => {
-        if (!url || typeof url !== 'string') return '';
 
-        // Whitelist only safe protocols
-        const safeProtocols = ['http:', 'https:', 'blob:'];
-
-        try {
-            // Use the native URL constructor for robust parsing
-            const parsed = new URL(url, window.location.origin);
-            return safeProtocols.includes(parsed.protocol) ? url : '';
-        } catch (e) {
-            // If parsing fails, it's not a valid/safe URL
-            return '';
-        }
-    };
 
     // 2. In your component, sanitize the source before rendering
-    const safeVideoSource = useMemo(() => getSafeUrl(videoSource), [videoSource]);
+    const safeVideoSource = useMemo(() => DOMPurify.sanitize(videoSource, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ }), [videoSource]);
 
     return (
         <>
@@ -265,12 +236,13 @@ const Upload = () => {
     const [uploadedVideoId, setUploadedVideoId] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
     const [previewFrames, setPreviewFrames] = useState([]);
+    const [selectedPreviewFrame, setSelectedPreviewFrame] = useState(null);
     const [uploadTimestamp, setUploadTimestamp] = useState(Date.now());
     const [showResetModal, setShowResetModal] = useState(false);
 
     // Task 3: Implement Sanitized Proxies via useMemo
-    const safeVideoPreview = useMemo(() => getSafeUrl(videoPreview), [videoPreview]);
-    const safeThumbnailPreview = useMemo(() => getSafeUrl(thumbnailPreview), [thumbnailPreview]);
+    const safeVideoPreview = useMemo(() => DOMPurify.sanitize(videoPreview, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ }), [videoPreview]);
+    const safeThumbnailPreview = useMemo(() => DOMPurify.sanitize(thumbnailPreview, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ }), [thumbnailPreview]);
 
     const navigate = useNavigate();
     const abortControllerRef = useRef(null);
@@ -520,10 +492,11 @@ const Upload = () => {
             <AnimatePresence>
                 {(isUploading || blocker.state === "blocked") && (
                     <motion.div
-                        initial={{ y: -100 }}
-                        animate={{ y: 0 }}
-                        exit={{ y: -100 }}
-                        className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-red-900/95 border border-red-500/50 backdrop-blur-md px-8 py-4 rounded-full shadow-[0_0_30px_rgba(255,0,0,0.6)] flex items-center gap-6"
+                        initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        className="fixed bottom-6 right-6 flex items-center gap-3 p-4 rounded-xl border border-red-500/30 shadow-2xl transition-all animate-fade-in z-[9999] bg-red-950/80 backdrop-blur-md"
                     >
                         <div className="flex items-center gap-3">
                             <span className="text-2xl animate-pulse">⚠️</span>
@@ -720,7 +693,7 @@ const Upload = () => {
                                                 className={`relative group cursor-pointer aspect-video bg-black rounded-xl overflow-hidden border-2 transition-all duration-300 shadow-xl ${selectedPreviewFrame === frame ? 'border-[#e50914] z-10 shadow-[0_0_20px_rgba(229,9,20,0.5)] ring-2 ring-[#e50914]/30' : 'border-transparent hover:border-gray-600 hover:shadow-2xl hover:shadow-red-900/40'} ${index === 0 ? 'origin-left' : (index === previewFrames.length - 1 ? 'origin-right' : 'origin-center')}`}
                                             >
                                                 <div className="absolute top-0 left-0 w-full bg-black/80 text-white text-[10px] text-center py-1 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest font-bold z-20">Click to Select</div>
-                                                <img src={`http://localhost:8000/storage/uploads/previews/${encodeURIComponent(frame.split('/').pop())}?t=${uploadTimestamp}`} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_THUMBNAIL; }} />
+                                                <img src={DOMPurify.sanitize(`http://localhost:8000/storage/uploads/previews/${encodeURIComponent(frame.split('/').pop())}?t=${uploadTimestamp}`, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ })} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_THUMBNAIL; }} />
                                                 {selectedPreviewFrame === frame && <div className="absolute inset-0 bg-[#e50914]/20 flex items-center justify-center backdrop-blur-[1px]"><div className="bg-[#e50914] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg transform scale-110 border border-white/20">Selected</div></div>}
                                                 <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-[10px] text-white font-mono opacity-0 group-hover:opacity-100 transition-opacity border border-white/10">FRAME {index + 1}</div>
                                             </motion.div>
