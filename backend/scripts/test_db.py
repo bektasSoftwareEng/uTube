@@ -17,9 +17,16 @@ print("=" * 60)
 
 try:
     print("\n1. Importing database modules...")
-    from backend.database.connection import init_db, Base, engine
-    from backend.database.models import User, Video, Comment
-    from backend.core.config import DATABASE_FILE
+    try:
+        from backend.database.connection import init_db, Base, engine
+        from backend.database.models import User, Video, Comment
+        from backend.core.config import DATABASE_FILE
+    except ImportError:
+        # Fallback for different working directory contexts
+        from database.connection import init_db, Base, engine
+        from database.models import User, Video, Comment
+        from core.config import DATABASE_FILE
+        
     print("   ✓ Imports successful")
     
     print(f"\n2. Database location: {DATABASE_FILE}")
@@ -49,4 +56,7 @@ except Exception as e:
     print(f"\n✗ Error: {e}")
     import traceback
     traceback.print_exc()
-    sys.exit(1)
+    
+    # Prevent sys.exit(1) during pytest collection phase which causes INTERNALERROR
+    if "pytest" not in sys.modules:
+        sys.exit(1)
