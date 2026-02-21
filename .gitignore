@@ -14,5 +14,5 @@ guvenlik-raporu.csv
 *.sqlite
 *.sqlite3
 *.db-journal
-*utube.db-wal
-*utube.db-shm
+*.db-wal
+*.db-shm
