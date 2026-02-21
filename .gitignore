@@ -9,3 +9,8 @@ venv/
 # CodeQL Local Scans
 codeql-db/
 guvenlik-raporu.csv
+backend/database/.db-shm
+backend/database/.db-wal
+backend/database/utube.db-wal
+backend/database/utube.db-wal
+backend/database/utube.db-shm
