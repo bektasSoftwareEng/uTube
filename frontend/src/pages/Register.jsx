@@ -20,6 +20,7 @@ const Register = () => {
         password: '',
         confirmPassword: ''
     });
+    console.log('Register State:', formData);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -128,11 +129,7 @@ const Register = () => {
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-0 pointer-events-none" />
 
             <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="w-full max-w-md p-8 rounded-3xl bg-black/40 border border-red-900/30 shadow-2xl backdrop-blur-xl relative z-10 ring-1 ring-white/5"
+                className="w-full max-w-md p-8 rounded-3xl glass border border-white/10 shadow-2xl"
             >
                 {/* Header Section */}
                 <div className="text-center mb-8">

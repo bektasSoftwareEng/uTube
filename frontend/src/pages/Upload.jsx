@@ -426,7 +426,16 @@ const Upload = () => {
                 selected_preview_frame: selectedPreviewFrame || null,
             };
             const response = await ApiClient.patch(`/videos/${uploadedVideoId}/`, updatePayload);
-            if (response.status === 200) {
+
+            if (formData.thumbnailFile) {
+                const thumbData = new FormData();
+                thumbData.append('thumbnail_file', formData.thumbnailFile);
+                await ApiClient.post(`/videos/${uploadedVideoId}/thumbnail`, thumbData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
+
+            if (response.status === 200 || response.status === 201) {
                 setSuccess(true);
                 setTimeout(() => navigate(`/video/${uploadedVideoId}`), 1500);
             }
