@@ -34,6 +34,7 @@ from backend.core.video_processor import (
     generate_preview_frames,
     cleanup_preview_frames
 )
+from backend.services.embedding_service import generate_embedding, compute_cosine_similarity
 from backend.core.config import VIDEOS_DIR, THUMBNAILS_DIR, PREVIEWS_DIR, TEMP_UPLOADS_DIR
 
 # Create router
@@ -259,6 +260,17 @@ async def upload_video(
                 scheduled_datetime = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
             except ValueError:
                 scheduled_datetime = None
+                
+        # Generate semantic embedding
+        combined_text = f"{title} {description or ''} {' '.join(tags_list)}"
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            # Offload PyTorch inference to a worker thread to prevent blocking/crashing the main event loop
+            embedding = await loop.run_in_executor(None, generate_embedding, combined_text)
+        except Exception as e:
+            print(f"[ERROR] Failed to generate embedding: {e}")
+            embedding = None
         
         # Create database entry (visibility defaults to private for upload phase)
         new_video = Video(
@@ -273,7 +285,8 @@ async def upload_video(
             thumbnail_filename=thumbnail_filename,
             duration=int(duration) if duration else None,
             user_id=current_user.id,
-            view_count=0
+            view_count=0,
+            embedding=json.dumps(embedding) if embedding else None
         )
         # Handle string serialization for Text columns
         if isinstance(tags_list, list):
@@ -374,6 +387,111 @@ def get_all_videos(
         for video in videos
     ]
 
+@router.get("/semantic-search", response_model=List[VideoListResponse])
+def semantic_search(
+    query: str,
+    limit: int = 12,
+    db: Session = Depends(get_db)
+):
+    """
+    Performs context-aware local semantic search using sentence-transformers and numpy.
+    """
+    if not query.strip():
+        return []
+        
+    try:
+        # 1. Generate local embedding for user query
+        query_vector = generate_embedding(query.strip())
+    except Exception as e:
+        print(f"[ERROR] Failed to generate query embedding: {e}")
+        return []
+        
+    now = datetime.utcnow()
+    clean_query = query.strip()
+    
+    # 2. Bypass ML for very short queries (1-2 chars) which produce extreme noise
+    if len(clean_query) < 3:
+        print(f"[SEMANTIC SEARCH] Query '{clean_query}' is too short ({len(clean_query)} chars). Using exact substring match fallback.")
+        
+        # Only match if the title explicitly Starts with the short query, or is exactly the short query.
+        # Removing % clean_query % because SQLite matching can still find letters inside words
+        # if spaces aren't strictly respected by the tokenizer.
+        eligible_videos = db.query(Video).filter(
+            Video.visibility == "public",
+            Video.status == "published",
+            or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+            or_(
+                Video.title.ilike(f"{clean_query}%"),          # Starts with
+                Video.title.ilike(clean_query),                # Exact match
+            )
+        ).all()
+        # No scoring needed, return direct match
+        scored_videos = [(1.0, v) for v in eligible_videos]
+        top_videos = [v[1] for v in scored_videos[:limit]]
+        print(f"[SEMANTIC SEARCH] Found {len(top_videos)} substring matches.")
+    else:
+        # Fetch all eligible videos that have embeddings stored natively in SQLite
+        eligible_videos = db.query(Video).filter(
+            Video.visibility == "public",
+            Video.status == "published",
+            or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+            Video.embedding != None
+        ).all()
+        
+        if not eligible_videos:
+            return []
+            
+        # 3. Calculate Cosine Similarity locally using our custom numpy logic
+        scored_videos = []
+        for video in eligible_videos:
+            try:
+                # SQLAlchemy JSON column usually returns a Python list
+                video_vector = video.embedding if isinstance(video.embedding, list) else json.loads(video.embedding)
+                if not video_vector:
+                    continue
+                    
+                score = compute_cosine_similarity(query_vector, video_vector)
+                
+                # Boost score if there's an exact substring match in the title
+                if clean_query.lower() in video.title.lower():
+                    score += 0.2
+                    
+                scored_videos.append((score, video))
+                print(f"[SEMANTIC SEARCH] Score for video {video.id} ('{video.title}'): {score:.4f}")
+            except Exception as e:
+                print(f"[WARNING] Could not compute distance for video {video.id}: {e}")
+                continue
+                
+        # 4. Sort by score descending (highest similarity first)
+        scored_videos.sort(key=lambda x: x[0], reverse=True)
+        
+        # Take top N
+        # 0.45 threshold ensures we only return strong contextual/semantic matches.
+        top_videos = [v[1] for v in scored_videos[:limit] if v[0] > 0.45]
+        print(f"[SEMANTIC SEARCH] ML Search returned {len(top_videos)} strong matches above threshold 0.45.")
+    
+    return [
+        VideoListResponse(
+            id=video.id,
+            title=video.title,
+            thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
+            view_count=video.view_count,
+            upload_date=video.upload_date.isoformat(),
+            duration=video.duration,
+            category=video.category,
+            tags=parse_tags(video.tags),
+            like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
+            author=AuthorResponse(
+                id=video.author.id,
+                username=video.author.username,
+                profile_image=video.author.profile_image,
+                video_count=video.author.videos.count()
+            )
+        )
+        for video in top_videos
+    ]
 
 @router.get("/{video_id}", response_model=VideoResponse)
 def get_video(
@@ -432,9 +550,43 @@ class VideoUpdateRequest(BaseModel):
     selected_preview_frame: Optional[str] = None
     class Config: from_attributes = True
 
+@router.post("/{video_id}/thumbnail", response_model=VideoResponse)
+def upload_video_thumbnail(
+    video_id: int,
+    thumbnail_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if video.user_id != current_user.id: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this video")
+    
+    import time
+    extension = os.path.splitext(thumbnail_file.filename)[1]
+    final_filename = f"video_{video_id}_custom_{int(time.time())}{extension}"
+    final_path = THUMBNAILS_DIR / final_filename
+    THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    with open(final_path, "wb") as buffer:
+        shutil.copyfileobj(thumbnail_file.file, buffer)
+        
+    old_filename = video.thumbnail_filename
+    if old_filename and old_filename != "default_thumbnail.png" and old_filename != final_filename:
+        old_path = THUMBNAILS_DIR / old_filename
+        if old_path.exists():
+            try:
+                os.remove(str(old_path))
+            except:
+                pass
+                
+    video.thumbnail_filename = final_filename
+    db.commit()
+    db.refresh(video)
+    return format_video_response(video, include_duration=True)
+
 @router.patch("/{video_id}/", response_model=VideoResponse)
 @router.put("/{video_id}/", response_model=VideoResponse)
-def update_video(
+async def update_video(
     video_id: int,
     update_data: VideoUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -446,11 +598,32 @@ def update_video(
     if video.user_id != current_user.id: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this video")
     
     new_visibility = update_data.visibility
+    
+    needs_new_embedding = False
 
-    if update_data.title is not None: video.title = update_data.title
-    if update_data.description is not None: video.description = update_data.description
+    if update_data.title is not None: 
+        video.title = update_data.title
+        needs_new_embedding = True
+    if update_data.description is not None: 
+        video.description = update_data.description
+        needs_new_embedding = True
     if update_data.category is not None: video.category = update_data.category
-    if update_data.tags is not None: video.tags = json.dumps(update_data.tags)
+    if update_data.tags is not None: 
+        video.tags = json.dumps(update_data.tags)
+        needs_new_embedding = True
+        
+    if needs_new_embedding:
+        try:
+            # Recompute semantic embedding if textual metadata changed
+            tags_list = json.loads(video.tags) if isinstance(video.tags, str) else (video.tags or [])
+            combined_text = f"{video.title} {video.description or ''} {' '.join(tags_list)}"
+            
+            import asyncio
+            loop = asyncio.get_event_loop()
+            new_embedding = await loop.run_in_executor(None, generate_embedding, combined_text)
+            video.embedding = json.dumps(new_embedding) if new_embedding else None
+        except Exception as e:
+            print(f"[ERROR] Failed to update embedding: {e}")
     if update_data.visibility is not None: video.visibility = update_data.visibility
     if update_data.scheduled_at is not None:
         video.scheduled_at = datetime.fromisoformat(update_data.scheduled_at) if update_data.scheduled_at else None

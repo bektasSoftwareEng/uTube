@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Upload from './pages/Upload'
 import Profile from './pages/Profile'
+import EditProfile from './pages/EditProfile'
 // ...
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
                     <Route path="/register" element={<Register />} />
                     <Route path="/upload" element={<Upload />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/edit-profile" element={<EditProfile />} />
 
                 </Routes>
             </main>
