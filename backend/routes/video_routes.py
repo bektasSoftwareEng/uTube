@@ -230,10 +230,12 @@ async def upload_video(
         video_path = TEMP_UPLOADS_DIR / video_filename
         thumbnail_path = THUMBNAILS_DIR / thumbnail_filename
         
+        os.makedirs(video_path.parent, exist_ok=True)
         with open(video_path, "wb") as buffer:
             shutil.copyfileobj(video_file.file, buffer)
         
         if thumbnail_file:
+            os.makedirs(thumbnail_path.parent, exist_ok=True)
             with open(thumbnail_path, "wb") as buffer:
                 shutil.copyfileobj(thumbnail_file.file, buffer)
         else:

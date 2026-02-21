@@ -259,10 +259,8 @@ const Upload = () => {
     }, [navigate, videoPreview, thumbnailPreview]);
 
     const updateFormData = (field, value) => {
-        // Sanitize text fields to prevent XSS at input time
-        const textFields = ['title', 'description'];
-        const sanitizedValue = textFields.includes(field) ? sanitizeText(value) : value;
-        setFormData(prev => ({ ...prev, [field]: sanitizedValue }));
+        // Removed real-time sanitization here to allow spacebar input (deferred to handleSubmit)
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const [tagInput, setTagInput] = useState('');
@@ -412,9 +410,15 @@ const Upload = () => {
         setError(null);
         try {
             if (!uploadedVideoId) throw new Error('No video uploaded');
+
+            // Defer sanitization to submission time to prevent intercepting keystrokes like spacebar
+            const finalTitle = formData.title ? sanitizeText(formData.title.trim()) : '';
+            if (!finalTitle) throw new Error('Title cannot be empty');
+            const finalDescription = formData.description ? sanitizeText(formData.description.trim()) : '';
+
             const updatePayload = {
-                title: formData.title,
-                description: formData.description,
+                title: finalTitle,
+                description: finalDescription,
                 category: formData.category,
                 tags: formData.tags,
                 visibility: formData.visibility,
