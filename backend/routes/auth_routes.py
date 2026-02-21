@@ -440,6 +440,7 @@ def update_user_profile(
         
         # Save file
         try:
+            os.makedirs(file_path.parent, exist_ok=True)
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
