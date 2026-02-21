@@ -102,6 +102,8 @@ class UserResponse(BaseModel):
     username: str
     email: str
     profile_image: Optional[str] = None
+    stream_title: Optional[str] = None
+    stream_category: Optional[str] = None
     created_at: str
     
     class Config:
@@ -355,6 +357,8 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
         username=current_user.username,
         email=current_user.email,
         profile_image=current_user.profile_image,
+        stream_title=current_user.stream_title,
+        stream_category=current_user.stream_category,
         created_at=current_user.created_at.isoformat()
     )
 
@@ -475,6 +479,8 @@ def update_user_profile(
         username=current_user.username,
         email=current_user.email,
         profile_image=current_user.profile_image,
+        stream_title=current_user.stream_title,
+        stream_category=current_user.stream_category,
         created_at=current_user.created_at.isoformat()
     )
 
@@ -634,6 +640,8 @@ def update_live_metadata(
     """
     Update the user's Stream Title and Category.
     """
+
+    print(f"Server Log: Updating metadata to Title: {metadata_data.title}")
     current_user.stream_title = metadata_data.title
     current_user.stream_category = metadata_data.category
     db.commit()

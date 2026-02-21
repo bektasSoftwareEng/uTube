@@ -7,6 +7,10 @@ FastAPI application setup and configuration.
 # CRITICAL: Load .env FIRST before any other imports
 from dotenv import load_dotenv
 from pathlib import Path
+import sys
+
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Load environment variables from .env file
 env_path = Path(__file__).resolve().parent.parent / ".env"
