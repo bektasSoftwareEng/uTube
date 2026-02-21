@@ -12,9 +12,14 @@ Features:
 from datetime import datetime, timedelta
 from typing import Optional
 import bcrypt
+import secrets
 from jose import JWTError, jwt
 
 from backend.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
+def generate_stream_key() -> str:
+    """Generate a secure, random stream key for OBS RTMP."""
+    return f"live_{secrets.token_hex(16)}"
 
 # Password hashing configuration
 # We use direct bcrypt for better compatibility with Python 3.13

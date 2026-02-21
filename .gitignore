@@ -9,3 +9,10 @@ venv/
 # CodeQL Local Scans
 codeql-db/
 guvenlik-raporu.csv
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
