@@ -16,3 +16,7 @@ guvenlik-raporu.csv
 *.db-journal
 *.db-wal
 *.db-shm
+
+CodeQL Artifacts
+codeql-db/
+codeql-report.csv
