@@ -219,13 +219,19 @@ async def upload_video(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
         
         # Generate unique filenames
-        video_filename = generate_unique_filename(video_file.filename)
+        safe_video_filename = os.path.basename(video_file.filename.replace('\0', ''))
+        video_filename = generate_unique_filename(safe_video_filename)
         
         if thumbnail_file:
-            extension = os.path.splitext(thumbnail_file.filename)[1]
+            safe_thumb_filename = os.path.basename(thumbnail_file.filename.replace('\0', ''))
+            extension = os.path.splitext(safe_thumb_filename)[1]
             thumbnail_filename = f"{os.path.splitext(video_filename)[0]}{extension}"
         else:
             thumbnail_filename = f"{os.path.splitext(video_filename)[0]}.jpg"
+            
+        # Explicit CodeQL sanitization before resolving path
+        video_filename = os.path.basename(video_filename.replace('\0', ''))
+        thumbnail_filename = os.path.basename(thumbnail_filename.replace('\0', ''))
         
         # Save video file to TEMP STAGING
         video_path = secure_resolve(TEMP_UPLOADS_DIR, video_filename)
@@ -565,8 +571,13 @@ def upload_video_thumbnail(
     if video.user_id != current_user.id: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this video")
     
     import time
-    extension = os.path.splitext(thumbnail_file.filename)[1]
+    safe_thumb_filename = os.path.basename(thumbnail_file.filename.replace('\0', ''))
+    extension = os.path.splitext(safe_thumb_filename)[1]
     final_filename = f"video_{video_id}_custom_{int(time.time())}{extension}"
+    
+    # Explicitly sanitize the final string for CodeQL's intra-procedural analysis
+    final_filename = os.path.basename(final_filename.replace('\0', ''))
+    
     final_path = secure_resolve(THUMBNAILS_DIR, final_filename)
     THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -668,7 +679,7 @@ async def update_video(
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None
     if update_data.selected_preview_frame:
-        temp_filename = os.path.basename(update_data.selected_preview_frame)
+        temp_filename = os.path.basename(update_data.selected_preview_frame.replace('\0', ''))
         temp_path = secure_resolve(PREVIEWS_DIR, temp_filename)
         selected_thumbnail_path = temp_path
     
