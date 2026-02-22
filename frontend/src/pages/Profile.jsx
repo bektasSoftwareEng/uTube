@@ -12,16 +12,29 @@ const Profile = () => {
     const [subscriptions, setSubscriptions] = useState([]);
 
     useEffect(() => {
-        try {
-            const data = localStorage.getItem(UTUBE_USER);
-            if (data) {
-                setUser(JSON.parse(data));
-            } else {
-                navigate('/login');
+        const loadProfile = async () => {
+            try {
+                // Always fetch fresh profile from server (includes real profile_image)
+                const res = await ApiClient.get('/auth/me');
+                setUser(res.data);
+                // Sync to localStorage so Navbar/other components pick up changes
+                localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+                window.dispatchEvent(new Event('authChange'));
+            } catch {
+                // If /me fails (expired token, etc.), fall back to localStorage
+                try {
+                    const data = localStorage.getItem(UTUBE_USER);
+                    if (data) {
+                        setUser(JSON.parse(data));
+                    } else {
+                        navigate('/login');
+                    }
+                } catch {
+                    navigate('/login');
+                }
             }
-        } catch (e) {
-            navigate('/login');
-        }
+        };
+        loadProfile();
     }, [navigate]);
 
     useEffect(() => {
