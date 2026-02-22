@@ -30,7 +30,8 @@ from backend.core.security import (
     decode_access_token,
     validate_password_strength,
     validate_email,
-    generate_stream_key
+    generate_stream_key,
+    secure_resolve
 )
 
 # Create router
@@ -444,7 +445,7 @@ def update_user_profile(
         # Create unique filename
         file_ext = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = AVATARS_DIR / unique_filename
+        file_path = secure_resolve(AVATARS_DIR, unique_filename)
         
         # Save file
         try:

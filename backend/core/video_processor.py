@@ -24,6 +24,7 @@ from backend.core.config import (
     ALLOWED_VIDEO_FORMATS,
     MAX_VIDEO_SIZE_MB
 )
+from backend.core.security import secure_resolve
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -150,17 +151,23 @@ def generate_preview_frames(video_path: str, output_dir: str, video_id: int, cou
         # Validate video path - Check TEMP/STAGING first!
         src_path = Path(video_path)
         if not src_path.exists():
-            temp_path = TEMP_UPLOADS_DIR / video_path
-            if temp_path.exists():
-                src_path = temp_path
-                logger.info(f"Video found in TEMP staging: {src_path}")
-            else:
-                perm_path = VIDEOS_DIR / video_path
-                if perm_path.exists():
-                    src_path = perm_path
-                    logger.info(f"Video found in VIDEOS storage: {src_path}")
+            try:
+                temp_path = secure_resolve(TEMP_UPLOADS_DIR, video_path)
+                if temp_path.exists():
+                    src_path = temp_path
+                    logger.info(f"Video found in TEMP staging: {src_path}")
                 else:
-                    logger.error(f"Video file not found: {video_path}")
+                    raise FileNotFoundError
+            except (Exception, FileNotFoundError):
+                try:
+                    perm_path = secure_resolve(VIDEOS_DIR, video_path)
+                    if perm_path.exists():
+                        src_path = perm_path
+                        logger.info(f"Video found in VIDEOS storage: {src_path}")
+                    else:
+                        raise FileNotFoundError
+                except (Exception, FileNotFoundError):
+                    logger.error(f"Video file not found or access denied: {video_path}")
                     return []
         
         duration = get_video_duration(str(src_path))

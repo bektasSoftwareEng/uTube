@@ -10,12 +10,32 @@ Features:
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 import bcrypt
 import secrets
 from jose import JWTError, jwt
+from fastapi import HTTPException, status
+from pathlib import Path
 
 from backend.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
+def secure_resolve(base_dir: Path, sub_path: Union[str, Path]) -> Path:
+    """
+    Resolve a user-provided path and ensure it stays within the base directory.
+    Prevents Path Traversal vulnerabilities.
+    """
+    try:
+        resolved_path = Path(base_dir / sub_path).resolve()
+        if not resolved_path.is_relative_to(base_dir.resolve()):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Invalid file path."
+            )
+        return resolved_path
+    except ValueError:
+        # Catch cases where is_relative_to fails on older Pythons if path isn't relative,
+        # or other pathlib resolution issues.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Invalid file path.")
 
 def generate_stream_key() -> str:
     """Generate a secure, random stream key for OBS RTMP."""
