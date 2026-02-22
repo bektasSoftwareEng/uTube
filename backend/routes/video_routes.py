@@ -575,13 +575,13 @@ def upload_video_thumbnail(
     extension = os.path.splitext(safe_thumb_filename)[1]
     final_filename = f"video_{video_id}_custom_{int(time.time())}{extension}"
     
-    # Explicitly sanitize the final string for CodeQL's intra-procedural analysis
-    final_filename = os.path.basename(final_filename.replace('\0', ''))
-    
-    final_path = secure_resolve(THUMBNAILS_DIR, final_filename)
     THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+    base_path = os.path.abspath(str(THUMBNAILS_DIR))
+    fullpath = os.path.abspath(os.path.normpath(os.path.join(base_path, final_filename)))
+    if not fullpath.startswith(base_path):
+        raise HTTPException(status_code=400, detail="Invalid path")
     
-    with open(final_path, "wb") as buffer:
+    with open(fullpath, "wb") as buffer:
         shutil.copyfileobj(thumbnail_file.file, buffer)
         
     old_filename = video.thumbnail_filename
