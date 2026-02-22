@@ -1,0 +1,8 @@
+HER GİTHUB PULL YAPTIĞINIZDA BUNLARI SIRAYLA ÇALIŞTIRIN!!!
+
+    cd frontend
+    npm install
+    cd ..
+    cd backend
+    pip install -r requirements.txt
+    cd ..
