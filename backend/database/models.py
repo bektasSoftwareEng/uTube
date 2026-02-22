@@ -143,6 +143,9 @@ class Video(Base):
     # Status (processing, published, failed)
     status = Column(String(20), default="processing", nullable=False, index=True)
 
+    # Semantic Search
+    embedding = Column(JSON, nullable=True)  # Store the dense vector as a JSON array of floats
+
     # Timestamps
     upload_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
