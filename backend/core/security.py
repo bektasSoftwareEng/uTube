@@ -19,22 +19,39 @@ from pathlib import Path
 
 from backend.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
+import os
+
 def secure_resolve(base_dir: Path, sub_path: Union[str, Path]) -> Path:
     """
     Resolve a user-provided path and ensure it stays within the base directory.
-    Prevents Path Traversal vulnerabilities.
+    Prevents Path Traversal vulnerabilities (CodeQL compliant).
     """
     try:
-        resolved_path = Path(base_dir / sub_path).resolve()
-        if not resolved_path.is_relative_to(base_dir.resolve()):
+        # Prevent absolute path injection by stripping leading slashes
+        sub_path_str = str(sub_path).lstrip("/\\")
+        
+        # Determine the absolute base directory
+        base_dir_str = os.path.abspath(str(base_dir))
+        
+        # Construct the final absolute target path
+        target_path_str = os.path.abspath(os.path.normpath(os.path.join(base_dir_str, sub_path_str)))
+        
+        # Ensure correct trailing slash on the prefix to prevent partial matches 
+        # (e.g., base_dir="/safe", target_path="/safe_hacked" -> would normally pass without trailing slash)
+        prefix = base_dir_str if base_dir_str.endswith(os.sep) else base_dir_str + os.sep
+        
+        # Validate that the target path is strictly within the base directory
+        # Allowing target_path_str == base_dir_str in case the root directory itself is being referenced.
+        if target_path_str != base_dir_str and not target_path_str.startswith(prefix):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Invalid file path."
             )
-        return resolved_path
-    except ValueError:
-        # Catch cases where is_relative_to fails on older Pythons if path isn't relative,
-        # or other pathlib resolution issues.
+            
+        return Path(target_path_str)
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Invalid file path.")
 
 def generate_stream_key() -> str:
