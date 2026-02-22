@@ -3,4 +3,29 @@ __pycache__/
 backend/database/utube.db
 storage/
 .env
+<<<<<<< Updated upstream
 node_modules/
+=======
+node_modules/
+dist/
+venv/
+# CodeQL Local Scans
+codeql-db/
+guvenlik-raporu.csv
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+CodeQL Artifacts
+codeql-db/
+codeql-report.csv
+*.mp4
+codeql-report.csv
+
+# Other projects (not part of uTube)
+zekosbazaar-website/
+>>>>>>> Stashed changes
