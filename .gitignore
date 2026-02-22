@@ -27,5 +27,9 @@ codeql-report.csv
 codeql-report.csv
 
 # Other projects (not part of uTube)
+<<<<<<< Updated upstream
+zekosbazaar-website/
+>>>>>>> Stashed changes
+=======
 zekosbazaar-website/
 >>>>>>> Stashed changes
