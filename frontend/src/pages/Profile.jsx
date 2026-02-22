@@ -158,13 +158,17 @@ const Profile = () => {
                         className="glass rounded-3xl p-8 border border-white/10"
                     >
                         <h3 className="text-xl font-bold mb-4">Account Stats</h3>
-                        <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="grid grid-cols-3 gap-4 mb-8">
                             <div className="bg-white/5 rounded-xl p-4">
-                                <p className="text-2xl font-black">0</p>
+                                <p className="text-2xl font-black">{user.subscriber_count ?? 0}</p>
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Subscribers</p>
                             </div>
                             <div className="bg-white/5 rounded-xl p-4">
-                                <p className="text-2xl font-black">0</p>
+                                <p className="text-2xl font-black">{user.video_count ?? 0}</p>
+                                <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Videos</p>
+                            </div>
+                            <div className="bg-white/5 rounded-xl p-4">
+                                <p className="text-2xl font-black">{(user.total_views ?? 0).toLocaleString()}</p>
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Total Views</p>
                             </div>
                         </div>
