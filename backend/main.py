@@ -15,17 +15,21 @@ if sys.stdout.encoding != 'utf-8':
 # Load environment variables from .env file
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
-print(f"[INFO] Loading environment variables from: {env_path}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+import logging
+import asyncio
+
+# Suppress all INFO-level logs -- only show warnings and errors
+logging.basicConfig(level=logging.WARNING)
+
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router
 from backend.database import init_db
 from backend.services.cleanup_service import startup_cleanup, cleanup_loop
-import asyncio
 
 # Create FastAPI application
 app = FastAPI(
@@ -74,16 +78,18 @@ async def startup_event():
     # Task 1: Start Periodic Background Cleanup
     asyncio.create_task(cleanup_loop())
 
-    # Ensure storage directories from config exist
-    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Ensure storage directories from config exist
+    # Ensure storage directories exist
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] {APP_NAME} v{APP_VERSION} started successfully!")
-    print("[INFO] Storage/Uploads directories initialized")
-    print(f"[INFO] Saving to: {UPLOADS_DIR}")
-    print(f"[INFO] API documentation: http://localhost:8000{API_PREFIX}/docs")
+
+    # -- Clean Startup Banner --
+    print("\n" + "=" * 52)
+    print(f"  [*] {APP_NAME} v{APP_VERSION}")
+    print("-" * 52)
+    print("  > API Server:   http://localhost:8000")
+    print(f"  > API Docs:     http://localhost:8000{API_PREFIX}/docs")
+    print("  > Frontend:     http://localhost:3000")
+    print("=" * 52 + "\n")
 
 
 

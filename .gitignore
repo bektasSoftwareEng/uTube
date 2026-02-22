@@ -1,7 +1,12 @@
 __pycache__/
 *.pyc
 backend/database/utube.db
+backend/database/utube.db-shm
+backend/database/utube.db-wal
 storage/
+*.tmp
+git_*_temp.txt
+git_current_branch.txt
 .env
 node_modules/
 dist/

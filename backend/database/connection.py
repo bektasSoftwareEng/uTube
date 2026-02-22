@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},
-    echo=True,  # Set to False in production to reduce logging
+    echo=False,  # Set to True for SQL debugging
     pool_pre_ping=True,  # Verify connections before using them
 )
 

@@ -1,0 +1,50 @@
+﻿Auto-merging .gitignore
+Merge made by the 'ort' strategy.
+ .gitignore                                         |   15 +-
+ Documentation/FIRST_RUN.txt                        |    8 +
+ Documentation/Version_Updates.docx                 |  Bin 27070 -> 28734 bytes
+ ...e patchlenmesi ana ba\305\237l\304\261klar.txt" |   14 +-
+ backend/.gitignore                                 |    3 +
+ backend/core/security.py                           |   44 +-
+ backend/core/video_processor.py                    |  247 ++---
+ backend/database/connection.py                     |   20 +
+ backend/database/models.py                         |    6 +
+ backend/main.py                                    |    4 +
+ backend/package.json                               |    8 +
+ backend/routes/auth_routes.py                      |   93 +-
+ backend/routes/video_routes.py                     |  223 +++-
+ backend/scripts/test_traversal.py                  |   41 +
+ backend/services/embedding_service.py              |   63 ++
+ frontend/dist/assets/index-34v8efoR.css            |    1 -
+ frontend/dist/assets/index-CdkMOcZA.js             |   80 --
+ frontend/dist/index.html                           |   16 -
+ frontend/dist/utube.png                            |  Bin 2113805 -> 0 bytes
+ frontend/package-lock.json                         |   51 +-
+ frontend/package.json                              |    4 +-
+ frontend/src/App.jsx                               |   19 +-
+ frontend/src/components/CategoryBar.jsx            |    2 +-
+ frontend/src/components/Navbar.jsx                 |   41 +-
+ frontend/src/pages/Home.jsx                        |   52 +-
+ frontend/src/pages/LiveStudio.jsx                  |  471 +++++++++
+ frontend/src/pages/Register.jsx                    |    7 +-
+ frontend/src/pages/Upload.jsx                      |   11 +-
+ package.json                                       |    4 +-
+ rtmp-server/package-lock.json                      | 1063 ++++++++++++++++++++
+ rtmp-server/package.json                           |   16 +
+ rtmp-server/server.js                              |   19 +
+ test_upload.py                                     |   13 +
+ 33 files changed, 2331 insertions(+), 328 deletions(-)
+ create mode 100644 Documentation/FIRST_RUN.txt
+ create mode 100644 backend/.gitignore
+ create mode 100644 backend/package.json
+ create mode 100644 backend/scripts/test_traversal.py
+ create mode 100644 backend/services/embedding_service.py
+ delete mode 100644 frontend/dist/assets/index-34v8efoR.css
+ delete mode 100644 frontend/dist/assets/index-CdkMOcZA.js
+ delete mode 100644 frontend/dist/index.html
+ delete mode 100644 frontend/dist/utube.png
+ create mode 100644 frontend/src/pages/LiveStudio.jsx
+ create mode 100644 rtmp-server/package-lock.json
+ create mode 100644 rtmp-server/package.json
+ create mode 100644 rtmp-server/server.js
+ create mode 100644 test_upload.py
