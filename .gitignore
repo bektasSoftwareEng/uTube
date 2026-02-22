@@ -20,3 +20,5 @@ guvenlik-raporu.csv
 CodeQL Artifacts
 codeql-db/
 codeql-report.csv
+*.mp4
+codeql-report.csv
