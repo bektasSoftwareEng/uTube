@@ -12,16 +12,29 @@ const Profile = () => {
     const [subscriptions, setSubscriptions] = useState([]);
 
     useEffect(() => {
-        try {
-            const data = localStorage.getItem(UTUBE_USER);
-            if (data) {
-                setUser(JSON.parse(data));
-            } else {
-                navigate('/login');
+        const loadProfile = async () => {
+            try {
+                // Always fetch fresh profile from server (includes real profile_image)
+                const res = await ApiClient.get('/auth/me');
+                setUser(res.data);
+                // Sync to localStorage so Navbar/other components pick up changes
+                localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+                window.dispatchEvent(new Event('authChange'));
+            } catch {
+                // If /me fails (expired token, etc.), fall back to localStorage
+                try {
+                    const data = localStorage.getItem(UTUBE_USER);
+                    if (data) {
+                        setUser(JSON.parse(data));
+                    } else {
+                        navigate('/login');
+                    }
+                } catch {
+                    navigate('/login');
+                }
             }
-        } catch (e) {
-            navigate('/login');
-        }
+        };
+        loadProfile();
     }, [navigate]);
 
     useEffect(() => {
@@ -145,13 +158,17 @@ const Profile = () => {
                         className="glass rounded-3xl p-8 border border-white/10"
                     >
                         <h3 className="text-xl font-bold mb-4">Account Stats</h3>
-                        <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="grid grid-cols-3 gap-4 mb-8">
                             <div className="bg-white/5 rounded-xl p-4">
-                                <p className="text-2xl font-black">0</p>
+                                <p className="text-2xl font-black">{user.subscriber_count ?? 0}</p>
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Subscribers</p>
                             </div>
                             <div className="bg-white/5 rounded-xl p-4">
-                                <p className="text-2xl font-black">0</p>
+                                <p className="text-2xl font-black">{user.video_count ?? 0}</p>
+                                <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Videos</p>
+                            </div>
+                            <div className="bg-white/5 rounded-xl p-4">
+                                <p className="text-2xl font-black">{(user.total_views ?? 0).toLocaleString()}</p>
                                 <p className="text-xs text-white/40 uppercase tracking-wider font-bold">Total Views</p>
                             </div>
                         </div>

@@ -29,18 +29,19 @@ const Login = () => {
             const { access_token, user_id, username } = response.data;
 
             if (access_token) {
-                // Storage
+                // Store token first so ApiClient can use it for /me
                 localStorage.setItem(UTUBE_TOKEN, access_token);
 
-                // Construct basic user object
-                const userObj = {
-                    id: user_id,
-                    username: username,
-                    email: email, // Fallback
-                    profile_image: null
-                };
-
-                localStorage.setItem(UTUBE_USER, JSON.stringify(userObj));
+                // Fetch full profile (with profile_image) from /me
+                try {
+                    const meRes = await ApiClient.get('/auth/me');
+                    localStorage.setItem(UTUBE_USER, JSON.stringify(meRes.data));
+                } catch {
+                    // Fallback: store minimal data if /me fails
+                    localStorage.setItem(UTUBE_USER, JSON.stringify({
+                        id: user_id, username, email, profile_image: null
+                    }));
+                }
 
                 // Event & Redirect
                 window.dispatchEvent(new Event('authChange'));
