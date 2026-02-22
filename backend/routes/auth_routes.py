@@ -29,7 +29,9 @@ from backend.core.security import (
     create_access_token,
     decode_access_token,
     validate_password_strength,
-    validate_email
+    validate_email,
+    generate_stream_key,
+    secure_resolve
 )
 
 # Create router
@@ -81,6 +83,12 @@ class UserUpdate(BaseModel):
     new_password: Optional[str] = Field(None, min_length=8)
 
 
+class LiveMetadataUpdate(BaseModel):
+    """Request model for live stream metadata updates."""
+    title: str = Field(..., max_length=100)
+    category: str = Field(..., max_length=50)
+
+
 class Token(BaseModel):
     """Response model for authentication token."""
     access_token: str
@@ -95,6 +103,8 @@ class UserResponse(BaseModel):
     username: str
     email: str
     profile_image: Optional[str] = None
+    stream_title: Optional[str] = None
+    stream_category: Optional[str] = None
     created_at: str
     
     class Config:
@@ -266,11 +276,12 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Hash password
     hashed_password = hash_password(user_data.password)
     
-    # Create new user
+    # Create new user with secure auto-generated stream key
     new_user = User(
         username=user_data.username,
         email=user_data.email,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        stream_key=generate_stream_key()
     )
     
     db.add(new_user)
@@ -347,6 +358,8 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
         username=current_user.username,
         email=current_user.email,
         profile_image=current_user.profile_image,
+        stream_title=current_user.stream_title,
+        stream_category=current_user.stream_category,
         created_at=current_user.created_at.isoformat()
     )
 
@@ -434,9 +447,14 @@ def update_user_profile(
             )
             
         # Create unique filename
-        file_ext = os.path.splitext(file.filename)[1]
+        safe_filename = os.path.basename(file.filename.replace('\0', ''))
+        file_ext = os.path.splitext(safe_filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = AVATARS_DIR / unique_filename
+        
+        # Explicitly sanitize the final string for CodeQL's intra-procedural analysis
+        unique_filename = os.path.basename(unique_filename.replace('\0', ''))
+        
+        file_path = secure_resolve(AVATARS_DIR, unique_filename)
         
         # Save file
         try:
@@ -467,6 +485,8 @@ def update_user_profile(
         username=current_user.username,
         email=current_user.email,
         profile_image=current_user.profile_image,
+        stream_title=current_user.stream_title,
+        stream_category=current_user.stream_category,
         created_at=current_user.created_at.isoformat()
     )
 
@@ -574,4 +594,67 @@ def forgot_password(email: EmailStr, db: Session = Depends(get_db)):
     # Always return success to prevent email enumeration
     return {
         "message": "If the email exists, a password reset link has been sent"
+    }
+
+
+# ============================================================================
+# Stream Key Management
+# ============================================================================
+
+@router.get("/stream-key")
+def get_stream_key(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve the current user's OBS Stream Key.
+    If the user lacks one (legacy account), generate it on the fly.
+    """
+    if not current_user.stream_key:
+        current_user.stream_key = generate_stream_key()
+        db.commit()
+        db.refresh(current_user)
+        
+    return {"stream_key": current_user.stream_key}
+
+
+@router.post("/stream-key/reset")
+def reset_stream_key(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Invalidate the old stream key and generate a fresh one.
+    Crucial for security if a key is compromised.
+    """
+    current_user.stream_key = generate_stream_key()
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "message": "Stream key universally regenerated",
+        "stream_key": current_user.stream_key
+    }
+
+
+@router.put("/live-metadata")
+def update_live_metadata(
+    metadata_data: LiveMetadataUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the user's Stream Title and Category.
+    """
+
+    print(f"Server Log: Updating metadata to Title: {metadata_data.title}")
+    current_user.stream_title = metadata_data.title
+    current_user.stream_category = metadata_data.category
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "message": "Metadata updated gracefully",
+        "stream_title": current_user.stream_title,
+        "stream_category": current_user.stream_category
     }
