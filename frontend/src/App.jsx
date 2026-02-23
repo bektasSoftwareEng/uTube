@@ -8,6 +8,7 @@ import Upload from './pages/Upload'
 import Profile from './pages/Profile'
 import EditProfile from './pages/EditProfile'
 import LiveStudio from './pages/LiveStudio'
+import WatchPage from './pages/WatchPage';
 import { UTUBE_TOKEN } from './utils/authConstants'
 
 // Utility component to strictly guard routes
@@ -25,6 +26,7 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/video/:id" element={<VideoDetail />} />
+                    <Route path="/watch/:username" element={<WatchPage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
 

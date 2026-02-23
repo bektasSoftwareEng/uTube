@@ -1,5 +1,3 @@
-const NodeMediaServer = require('node-media-server');
-
 const config = {
     logType: 3,
     rtmp: {
@@ -14,6 +12,3 @@ const config = {
         allow_origin: '*'
     }
 };
-
-const nms = new NodeMediaServer(config);
-nms.run();
