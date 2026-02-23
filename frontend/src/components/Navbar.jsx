@@ -100,19 +100,35 @@ const Navbar = () => {
     // ── Check for new subscription videos periodically ──
     useEffect(() => {
         if (!user) return;
-        const checkNew = async () => {
+
+        const checkNew = async (retries = 3) => {
             try {
                 const res = await ApiClient.get('/feed/subscriptions', { params: { limit: 1 } });
                 if (res.data.length > 0) {
                     setHasNew(true);
                 }
-            } catch {
-                // Silently fail
+            } catch (err) {
+                // Determine if it is a network error/proxy error
+                const isNetworkError = err.code === 'ERR_NETWORK' || !err.response;
+                if (isNetworkError && retries > 0) {
+                    console.warn(`Feed fetch failed. Retrying... (${retries} left)`);
+                    setTimeout(() => checkNew(retries - 1), 2000);
+                } else {
+                    // Silently fail after retries
+                    console.error("Feed feed definitive failure:", err.message);
+                }
             }
         };
-        checkNew();
-        const interval = setInterval(checkNew, 60000); // Check every 60s
-        return () => clearInterval(interval);
+
+        // Delay initial check slightly to allow python backend to boot
+        const startupTimeout = setTimeout(checkNew, 2000);
+
+        const interval = setInterval(() => checkNew(), 60000); // Check every 60s
+
+        return () => {
+            clearTimeout(startupTimeout);
+            clearInterval(interval);
+        };
     }, [user]);
 
     const handleBellClick = () => {
