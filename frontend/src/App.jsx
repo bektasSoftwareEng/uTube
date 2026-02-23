@@ -11,12 +11,7 @@ import EditProfile from './pages/EditProfile'
 import LiveStudio from './pages/LiveStudio'
 import WatchPage from './pages/WatchPage';
 import { UTUBE_TOKEN } from './utils/authConstants'
-
-// Utility component to strictly guard routes
-const ProtectedRoute = ({ children }) => {
-    const isAuthenticated = !!localStorage.getItem(UTUBE_TOKEN);
-    return isAuthenticated ? children : <Navigate to="/login" replace />;
-};
+import { SidebarProvider, useSidebar } from './context/SidebarContext';
 
 // Utility component to strictly guard routes
 const ProtectedRoute = ({ children }) => {
