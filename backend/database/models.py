@@ -45,6 +45,9 @@ class User(Base):
     # Profile Information
     profile_image = Column(String(255), nullable=True, default="default_avatar.png")
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
+    stream_key = Column(String(100), unique=True, index=True, nullable=True)
+    stream_title = Column(String(100), nullable=True)
+    stream_category = Column(String(50), nullable=True, default="Gaming")
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

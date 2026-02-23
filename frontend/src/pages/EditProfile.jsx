@@ -99,6 +99,7 @@ const EditProfile = () => {
             const updatedUser = response.data;
             localStorage.setItem(UTUBE_USER, JSON.stringify(updatedUser));
             setUser(updatedUser);
+            window.dispatchEvent(new Event('authChange'));
 
             setSuccess("Profile updated successfully!");
             setTimeout(() => navigate('/profile'), 1500);

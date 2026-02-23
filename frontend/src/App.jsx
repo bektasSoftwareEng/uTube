@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
@@ -10,8 +9,14 @@ import Upload from './pages/Upload'
 import Profile from './pages/Profile'
 import EditProfile from './pages/EditProfile'
 import LiveStudio from './pages/LiveStudio'
+import WatchPage from './pages/WatchPage';
 import { UTUBE_TOKEN } from './utils/authConstants'
-import { SidebarProvider, useSidebar } from './context/SidebarContext'
+
+// Utility component to strictly guard routes
+const ProtectedRoute = ({ children }) => {
+    const isAuthenticated = !!localStorage.getItem(UTUBE_TOKEN);
+    return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
 
 // Utility component to strictly guard routes
 const ProtectedRoute = ({ children }) => {
@@ -35,12 +40,15 @@ const AppLayout = () => {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/video/:id" element={<VideoDetail />} />
+                    <Route path="/watch/:username" element={<WatchPage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
-                    <Route path="/upload" element={<Upload />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/edit-profile" element={<EditProfile />} />
 
+                    {/* Protected Routes */}
+                    <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                    <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+                    <Route path="/live" element={<ProtectedRoute><LiveStudio /></ProtectedRoute>} />
                 </Routes>
             </main>
         </div>

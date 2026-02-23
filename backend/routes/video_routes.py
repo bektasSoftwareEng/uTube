@@ -36,6 +36,7 @@ from backend.core.video_processor import (
 )
 from backend.services.embedding_service import generate_embedding, compute_cosine_similarity
 from backend.core.config import VIDEOS_DIR, THUMBNAILS_DIR, PREVIEWS_DIR, TEMP_UPLOADS_DIR
+from backend.core.security import secure_resolve
 
 # Create router
 router = APIRouter(prefix="/videos", tags=["Videos"])
@@ -153,7 +154,7 @@ def parse_tags(tags_val: Union[str, List, None]) -> List[str]:
 def format_video_response(video: Video, include_duration: bool = False) -> dict:
     """Format video object for API response."""
     # Check if video file exists in main video directory, if not assume temp
-    video_path = VIDEOS_DIR / video.video_filename
+    video_path = secure_resolve(VIDEOS_DIR, video.video_filename)
     is_temp = not video_path.exists()
     
     # helper to ensure category is None if empty string? No, Optional[str] handles None.
@@ -218,17 +219,23 @@ async def upload_video(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
         
         # Generate unique filenames
-        video_filename = generate_unique_filename(video_file.filename)
+        safe_video_filename = os.path.basename(video_file.filename.replace('\0', ''))
+        video_filename = generate_unique_filename(safe_video_filename)
         
         if thumbnail_file:
-            extension = os.path.splitext(thumbnail_file.filename)[1]
+            safe_thumb_filename = os.path.basename(thumbnail_file.filename.replace('\0', ''))
+            extension = os.path.splitext(safe_thumb_filename)[1]
             thumbnail_filename = f"{os.path.splitext(video_filename)[0]}{extension}"
         else:
             thumbnail_filename = f"{os.path.splitext(video_filename)[0]}.jpg"
+            
+        # Explicit CodeQL sanitization before resolving path
+        video_filename = os.path.basename(video_filename.replace('\0', ''))
+        thumbnail_filename = os.path.basename(thumbnail_filename.replace('\0', ''))
         
         # Save video file to TEMP STAGING
-        video_path = TEMP_UPLOADS_DIR / video_filename
-        thumbnail_path = THUMBNAILS_DIR / thumbnail_filename
+        video_path = secure_resolve(TEMP_UPLOADS_DIR, video_filename)
+        thumbnail_path = secure_resolve(THUMBNAILS_DIR, thumbnail_filename)
         
         os.makedirs(video_path.parent, exist_ok=True)
         with open(video_path, "wb") as buffer:
@@ -529,13 +536,13 @@ def delete_video(video_id: int, current_user: User = Depends(get_current_user), 
     if not video: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     if video.user_id != current_user.id: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this video")
     
-    video_path_perm = VIDEOS_DIR / video.video_filename
-    video_path_temp = TEMP_UPLOADS_DIR / video.video_filename
+    video_path_perm = secure_resolve(VIDEOS_DIR, video.video_filename)
+    video_path_temp = secure_resolve(TEMP_UPLOADS_DIR, video.video_filename)
     
     if video_path_perm.exists(): cleanup_file(str(video_path_perm))
     if video_path_temp.exists(): cleanup_file(str(video_path_temp))
 
-    thumbnail_path = THUMBNAILS_DIR / video.thumbnail_filename
+    thumbnail_path = secure_resolve(THUMBNAILS_DIR, video.thumbnail_filename)
     if video.thumbnail_filename != "default_thumbnail.png": cleanup_file(str(thumbnail_path))
     
     db.delete(video)
@@ -564,17 +571,22 @@ def upload_video_thumbnail(
     if video.user_id != current_user.id: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this video")
     
     import time
-    extension = os.path.splitext(thumbnail_file.filename)[1]
+    safe_thumb_filename = os.path.basename(thumbnail_file.filename.replace('\0', ''))
+    extension = os.path.splitext(safe_thumb_filename)[1]
     final_filename = f"video_{video_id}_custom_{int(time.time())}{extension}"
-    final_path = THUMBNAILS_DIR / final_filename
-    THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
     
-    with open(final_path, "wb") as buffer:
+    THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+    base_path = os.path.abspath(str(THUMBNAILS_DIR))
+    fullpath = os.path.abspath(os.path.normpath(os.path.join(base_path, final_filename)))
+    if not fullpath.startswith(base_path):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    with open(fullpath, "wb") as buffer:
         shutil.copyfileobj(thumbnail_file.file, buffer)
         
     old_filename = video.thumbnail_filename
     if old_filename and old_filename != "default_thumbnail.png" and old_filename != final_filename:
-        old_path = THUMBNAILS_DIR / old_filename
+        old_path = secure_resolve(THUMBNAILS_DIR, old_filename)
         if old_path.exists():
             try:
                 os.remove(str(old_path))
@@ -634,8 +646,8 @@ async def update_video(
     if new_visibility == 'public':
         video.status = 'published'
     if new_visibility == 'public':
-        temp_video_path = TEMP_UPLOADS_DIR / video.video_filename
-        perm_video_path = VIDEOS_DIR / video.video_filename
+        temp_video_path = secure_resolve(TEMP_UPLOADS_DIR, video.video_filename)
+        perm_video_path = secure_resolve(VIDEOS_DIR, video.video_filename)
         
         # Move if logic
         if not perm_video_path.exists():
@@ -667,15 +679,15 @@ async def update_video(
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None
     if update_data.selected_preview_frame:
-        temp_filename = os.path.basename(update_data.selected_preview_frame)
-        temp_path = PREVIEWS_DIR / temp_filename
+        temp_filename = os.path.basename(update_data.selected_preview_frame.replace('\0', ''))
+        temp_path = secure_resolve(PREVIEWS_DIR, temp_filename)
         selected_thumbnail_path = temp_path
     
     if selected_thumbnail_path and selected_thumbnail_path.exists():
         try:
             file_ext = selected_thumbnail_path.suffix
             final_filename = f"video_{video_id}_final{file_ext}"
-            final_path = THUMBNAILS_DIR / final_filename
+            final_path = secure_resolve(THUMBNAILS_DIR, final_filename)
             THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
             shutil.move(str(selected_thumbnail_path), str(final_path))
             video.thumbnail_filename = final_filename

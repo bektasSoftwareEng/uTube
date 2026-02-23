@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},
-    echo=True,  # Set to False in production to reduce logging
+    echo=False,  # Set to True for SQL debugging
     pool_pre_ping=True,  # Verify connections before using them
 )
 
@@ -144,6 +144,26 @@ def run_schema_migrations():
                     logger.info("  ✅ Added missing column: likes.is_dislike")
                 except Exception as e:
                     logger.warning(f"  ⚠️ Could not add likes.is_dislike: {e}")
+
+        # --- Migration 3: Users Table (Stream Key & Metadata) ---
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(users)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            user_columns = [
+                ("stream_key", "VARCHAR(100)"),
+                ("stream_title", "VARCHAR(100)"),
+                ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'")
+            ]
+            
+            for col_name, col_def in user_columns:
+                if col_name not in existing_columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+                        logger.info(f"  ✅ Added missing column: users.{col_name}")
+                    except Exception as e:
+                        logger.warning(f"  ⚠️ Could not add users.{col_name}: {e}")
 
         conn.commit()
         conn.close()

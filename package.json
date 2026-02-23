@@ -3,9 +3,11 @@
     "version": "1.0.0",
     "description": "Unified workflow for uTube project",
     "scripts": {
-        "backend": "python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000",
+        "backend": "python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 --log-level warning",
         "frontend": "npm run dev --prefix frontend",
-        "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+        "media": "node rtmp-server/server.js",
+        "dev": "cls && concurrently --raw \"npm run backend\" \"npm run frontend\" \"npm run media\"",
+        "scan": "codeql database create codeql-db --language=python --source-root . --overwrite && codeql database analyze codeql-db --format=csv --output=codeql-report.csv --download"
     },
     "devDependencies": {
         "concurrently": "^8.2.2"

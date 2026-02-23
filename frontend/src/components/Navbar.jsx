@@ -102,19 +102,35 @@ const Navbar = () => {
     // ── Check for new subscription videos periodically ──
     useEffect(() => {
         if (!user) return;
-        const checkNew = async () => {
+
+        const checkNew = async (retries = 3) => {
             try {
                 const res = await ApiClient.get('/feed/subscriptions', { params: { limit: 1 } });
                 if (res.data.length > 0) {
                     setHasNew(true);
                 }
-            } catch {
-                // Silently fail
+            } catch (err) {
+                // Determine if it is a network error/proxy error
+                const isNetworkError = err.code === 'ERR_NETWORK' || !err.response;
+                if (isNetworkError && retries > 0) {
+                    console.warn(`Feed fetch failed. Retrying... (${retries} left)`);
+                    setTimeout(() => checkNew(retries - 1), 2000);
+                } else {
+                    // Silently fail after retries
+                    console.error("Feed feed definitive failure:", err.message);
+                }
             }
         };
-        checkNew();
-        const interval = setInterval(checkNew, 60000); // Check every 60s
-        return () => clearInterval(interval);
+
+        // Delay initial check slightly to allow python backend to boot
+        const startupTimeout = setTimeout(checkNew, 2000);
+
+        const interval = setInterval(() => checkNew(), 60000); // Check every 60s
+
+        return () => {
+            clearTimeout(startupTimeout);
+            clearInterval(interval);
+        };
     }, [user]);
 
     const handleBellClick = () => {
@@ -220,6 +236,18 @@ const Navbar = () => {
                 <div className="flex items-center gap-3 sm:gap-6">
                     {user ? (
                         <div className="flex items-center gap-4">
+                            {/* Go Live Button */}
+                            <Link to="/live">
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-bold text-sm"
+                                >
+                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                    <span className="hidden xs:inline">Canlı Yayın Aç</span>
+                                </motion.button>
+                            </Link>
+
                             {/* Upload Button */}
                             <Link to="/upload">
                                 <motion.button

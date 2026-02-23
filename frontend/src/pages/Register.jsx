@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
@@ -20,7 +20,6 @@ const Register = () => {
         password: '',
         confirmPassword: ''
     });
-    console.log('Register State:', formData);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -29,13 +28,16 @@ const Register = () => {
 
     const sanitize = (str) => str.replace(/[<>]/g, '');
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+    // Optimized: use functional updater to avoid stale closure re-renders
+    const handleChange = useCallback((e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    }, []);
 
-    const handleBlur = (e) => {
-        setTouched({ ...touched, [e.target.name]: true });
-    };
+    const handleBlur = useCallback((e) => {
+        const { name } = e.target;
+        setTouched(prev => ({ ...prev, [name]: true }));
+    }, []);
 
     // ── Computed validation state ──
     const emailValid = EMAIL_REGEX.test(formData.email);
@@ -68,7 +70,6 @@ const Register = () => {
         }
 
         try {
-            // FIX: Removed trailing slash to prevent 307 redirect that drops POST body
             await ApiClient.post('/auth/register', {
                 username: sanitize(formData.username),
                 email: sanitize(formData.email),
@@ -94,27 +95,16 @@ const Register = () => {
         }
     };
 
-    // Animation Variants
-    const containerVariants = {
-        hidden: { opacity: 0, scale: 0.95 },
-        visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" } },
-        exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
-    };
-
-    // ── Small reusable components ──
+    // ── Fixed-space validation hint: always reserves vertical space to prevent layout shift ──
     const FieldHint = ({ show, valid, text }) => (
-        <AnimatePresence>
-            {show && (
-                <motion.p
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className={`text-xs mt-1.5 ml-1 font-medium ${valid ? 'text-green-400' : 'text-red-400'}`}
-                >
-                    {valid ? '✓ ' : '✗ '}{text}
-                </motion.p>
-            )}
-        </AnimatePresence>
+        <div className="min-h-[20px] mt-1 ml-1">
+            <p
+                className={`text-xs font-medium transition-opacity duration-200 ${show ? 'opacity-100' : 'opacity-0'
+                    } ${valid ? 'text-green-400' : 'text-red-400'}`}
+            >
+                {valid ? '✓ ' : '✗ '}{text}
+            </p>
+        </div>
     );
 
     const inputBorderClass = (fieldName, isValid) => {
@@ -122,43 +112,51 @@ const Register = () => {
         return isValid ? 'border-green-500/50' : 'border-red-500/50';
     };
 
+    // Whether to show the password checklist
+    const showPasswordChecklist = touched.password || formData.password.length > 0;
+
     return (
-        <div className="min-h-screen flex items-center justify-center px-4 bg-[#0f0f0f] text-white selection:bg-[#e50914] selection:text-white relative overflow-hidden">
+        <div className="min-h-screen flex items-start justify-center px-4 py-8 bg-[#0f0f0f] text-white selection:bg-[#e50914] selection:text-white relative overflow-y-auto">
             {/* Cinematic Background Gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-[#251010] z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-0 pointer-events-none" />
 
             <motion.div
-                className="w-full max-w-md p-8 rounded-3xl glass border border-white/10 shadow-2xl"
+                className="relative z-10 w-full max-w-md my-auto p-6 sm:p-8 rounded-3xl glass border border-white/10 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
             >
                 {/* Header Section */}
-                <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-[#e50914] to-[#b2070f] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_20px_rgba(229,9,20,0.4)] transform rotate-3 hover:rotate-6 transition-transform duration-300">
-                        <span className="font-black text-3xl text-white italic tracking-tighter">u</span>
+                <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-gradient-to-br from-[#e50914] to-[#b2070f] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(229,9,20,0.4)] transform rotate-3 hover:rotate-6 transition-transform duration-300">
+                        <span className="font-black text-2xl text-white italic tracking-tighter">u</span>
                     </div>
-                    <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Join the Elite</h2>
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-1">Join the Elite</h2>
                     <p className="text-gray-400 text-sm">Create your creator account today</p>
                 </div>
 
-                {/* Error Message */}
-                <AnimatePresence>
-                    {error && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            className="mb-6 p-4 rounded-2xl bg-red-900/20 border border-[#e50914]/50 text-red-200 text-sm font-medium flex items-center gap-3 backdrop-blur-sm shadow-[0_0_15px_rgba(229,9,20,0.1)]"
-                        >
-                            <span className="text-xl">⚠️</span>
-                            {error}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {/* Error Message — fixed height reserved space */}
+                <div className="min-h-[1px] mb-2">
+                    <AnimatePresence>
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="p-3 rounded-2xl bg-red-900/20 border border-[#e50914]/50 text-red-200 text-sm font-medium flex items-center gap-3 backdrop-blur-sm shadow-[0_0_15px_rgba(229,9,20,0.1)]"
+                            >
+                                <span className="text-lg">⚠️</span>
+                                {error}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-3">
                     {/* Username */}
-                    <div className="space-y-2 group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
                             Username
                         </label>
                         <input
@@ -168,7 +166,7 @@ const Register = () => {
                             value={formData.username}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                            className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="Create a unique username"
                         />
                         <FieldHint
@@ -179,8 +177,8 @@ const Register = () => {
                     </div>
 
                     {/* Email */}
-                    <div className="space-y-2 group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
                             Email Address
                         </label>
                         <input
@@ -190,7 +188,7 @@ const Register = () => {
                             value={formData.email}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="name@example.com"
                         />
                         <FieldHint
@@ -201,8 +199,8 @@ const Register = () => {
                     </div>
 
                     {/* Password */}
-                    <div className="space-y-2 group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
                             Password
                         </label>
                         <input
@@ -212,32 +210,23 @@ const Register = () => {
                             value={formData.password}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('password', passwordValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                            className={`w-full bg-white/5 border ${inputBorderClass('password', passwordValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="••••••••"
                         />
-                        {/* Password strength checklist */}
-                        <AnimatePresence>
-                            {(touched.password || formData.password.length > 0) && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="mt-2 ml-1 space-y-1"
-                                >
-                                    {passwordChecks.map((rule) => (
-                                        <div key={rule.label} className={`flex items-center gap-2 text-xs font-medium transition-colors ${rule.passed ? 'text-green-400' : 'text-white/30'}`}>
-                                            <span className="text-[10px]">{rule.passed ? '●' : '○'}</span>
-                                            {rule.label}
-                                        </div>
-                                    ))}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {/* Password strength checklist — always rendered at fixed height, opacity-only transition */}
+                        <div className={`mt-1.5 ml-1 space-y-0.5 transition-opacity duration-200 ${showPasswordChecklist ? 'opacity-100' : 'opacity-0'}`}>
+                            {passwordChecks.map((rule) => (
+                                <div key={rule.label} className={`flex items-center gap-2 text-xs font-medium transition-colors ${rule.passed ? 'text-green-400' : 'text-white/30'}`}>
+                                    <span className="text-[10px]">{rule.passed ? '●' : '○'}</span>
+                                    {rule.label}
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Confirm Password */}
-                    <div className="space-y-2 group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 group-focus-within:text-[#e50914] transition-colors">
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
                             Confirm Password
                         </label>
                         <input
@@ -247,7 +236,7 @@ const Register = () => {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('confirmPassword', confirmValid)} text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                            className={`w-full bg-white/5 border ${inputBorderClass('confirmPassword', confirmValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="••••••••"
                         />
                         <FieldHint
@@ -260,7 +249,7 @@ const Register = () => {
                     <button
                         type="submit"
                         disabled={loading || !formValid}
-                        className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_5px_20px_rgba(229,9,20,0.3)] hover:shadow-[0_5px_30px_rgba(229,9,20,0.5)] mt-6 text-lg tracking-wide"
+                        className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_5px_20px_rgba(229,9,20,0.3)] hover:shadow-[0_5px_30px_rgba(229,9,20,0.5)] mt-4 text-lg tracking-wide"
                     >
                         {loading ? (
                             <span className="flex items-center justify-center gap-2">
@@ -271,7 +260,7 @@ const Register = () => {
                     </button>
                 </form>
 
-                <div className="mt-8 text-center border-t border-white/5 pt-6">
+                <div className="mt-6 text-center border-t border-white/5 pt-4">
                     <p className="text-gray-400 text-sm">
                         Already have an account?{' '}
                         <Link to="/login" className="text-[#e50914] font-bold hover:text-red-400 transition-colors hover:underline decoration-2 underline-offset-4">
@@ -285,3 +274,4 @@ const Register = () => {
 };
 
 export default Register;
+
