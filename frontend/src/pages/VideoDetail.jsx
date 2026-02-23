@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
 import VideoPlayer from '../components/VideoPlayer';
@@ -50,13 +51,15 @@ const VideoDetail = () => {
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [commentCount, setCommentCount] = useState(0);
 
-    // Get current user from localStorage
+    // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
         try {
             const data = localStorage.getItem(UTUBE_USER);
             return data ? JSON.parse(data) : null;
         } catch { return null; }
     };
+    const currentUser = getCurrentUser();
+    const isOwnChannel = currentUser && video?.author && currentUser.id === video.author.id;
 
     // ══════════════════════════════════════════════════
     // Fetch Video Data
@@ -211,24 +214,37 @@ const VideoDetail = () => {
     const handleSubscribe = async () => {
         const userStr = localStorage.getItem(UTUBE_USER);
         if (!userStr) {
-            alert("Please sign in to subscribe");
+            toast.error('Abone olmak için giriş yapın');
             return;
         }
         if (!video?.author) return;
+
+        // Frontend guard: prevent self-subscribe
+        if (isOwnChannel) {
+            toast.error('Kendi kanalınıza abone olamazsınız!');
+            return;
+        }
 
         setSubLoading(true);
         try {
             if (isSubscribed) {
                 await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(false);
+                toast.success('Abonelikten çıkıldı');
             } else {
                 await ApiClient.post(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(true);
+                toast.success('Abone olundu!');
             }
         } catch (error) {
             console.error("Subscription action failed:", error);
-            if (error.response?.data?.detail === "Already subscribed") {
+            const detail = error.response?.data?.detail;
+            if (detail === 'SELF_SUBSCRIPTION_NOT_ALLOWED') {
+                toast.error('Kendi kanalınıza abone olamazsınız!');
+            } else if (detail === 'Already subscribed') {
                 setIsSubscribed(true);
+            } else {
+                toast.error('Abonelik işlemi başarısız oldu');
             }
         } finally {
             setSubLoading(false);
@@ -378,7 +394,6 @@ const VideoDetail = () => {
         ? getValidUrl(video.video_url, DYNAMIC_FALLBACK)
         : DYNAMIC_FALLBACK;
 
-    const currentUser = getCurrentUser();
 
     return (
         <motion.div
@@ -422,16 +437,25 @@ const VideoDetail = () => {
                                 <p className="font-bold">{video.author?.username}</p>
                                 <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
                             </div>
-                            <button
-                                onClick={handleSubscribe}
-                                disabled={subLoading}
-                                className={`ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isSubscribed
-                                    ? "bg-white/10 text-white hover:bg-white/20 border border-white/5"
-                                    : "bg-white text-black hover:bg-white/90"
-                                    }`}
-                            >
-                                {subLoading ? "..." : isSubscribed ? "Subscribed" : "Subscribe"}
-                            </button>
+                            {isOwnChannel ? (
+                                <Link
+                                    to="/edit-profile"
+                                    className="ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 bg-white/10 text-white hover:bg-white/20 border border-white/5 inline-block"
+                                >
+                                    Edit Profile
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={handleSubscribe}
+                                    disabled={subLoading}
+                                    className={`ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isSubscribed
+                                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/5"
+                                        : "bg-white text-black hover:bg-white/90"
+                                        }`}
+                                >
+                                    {subLoading ? "..." : isSubscribed ? "Subscribed" : "Subscribe"}
+                                </button>
+                            )}
                         </div>
 
 

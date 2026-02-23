@@ -522,7 +522,7 @@ def subscribe_to_user(
 ):
     """Subscribe to a user channel."""
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot subscribe to yourself")
+        raise HTTPException(status_code=400, detail="SELF_SUBSCRIPTION_NOT_ALLOWED")
     
     user_to_follow = db.query(User).filter(User.id == user_id).first()
     if not user_to_follow:

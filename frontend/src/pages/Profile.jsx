@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
-import { getAvatarUrl } from '../utils/urlHelper';
+import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import ApiClient from '../utils/ApiClient';
-import { Link } from 'react-router-dom';
 
 const Profile = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [subscriptions, setSubscriptions] = useState([]);
+    const [myVideos, setMyVideos] = useState([]);
+    const [myVideosLoading, setMyVideosLoading] = useState(true);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -49,6 +50,23 @@ const Profile = () => {
         };
 
         fetchSubscriptions();
+    }, [user]);
+
+    // Fetch user's uploaded videos
+    useEffect(() => {
+        const fetchMyVideos = async () => {
+            if (!user) return;
+            setMyVideosLoading(true);
+            try {
+                const response = await ApiClient.get(`/videos/user/${user.id}`);
+                setMyVideos(response.data);
+            } catch (error) {
+                console.error('Failed to fetch my videos:', error);
+            } finally {
+                setMyVideosLoading(false);
+            }
+        };
+        fetchMyVideos();
     }, [user]);
 
     const handleLogout = () => {
@@ -140,15 +158,56 @@ const Profile = () => {
                         className="glass rounded-3xl p-8 border border-white/10"
                     >
                         <h3 className="text-xl font-bold mb-4">My Uploads</h3>
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                                <svg className="w-8 h-8 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
+                        {myVideosLoading ? (
+                            <div className="grid grid-cols-2 gap-3">
+                                {[...Array(4)].map((_, i) => (
+                                    <div key={i} className="animate-pulse">
+                                        <div className="aspect-video bg-white/5 rounded-lg mb-2" />
+                                        <div className="h-3 bg-white/5 rounded w-3/4 mb-1" />
+                                        <div className="h-2 bg-white/5 rounded w-1/2" />
+                                    </div>
+                                ))}
                             </div>
-                            <p className="text-white/40 font-medium">No videos uploaded yet</p>
-                            <button className="mt-4 text-primary font-bold text-sm hover:underline">Upload your first video</button>
-                        </div>
+                        ) : myVideos.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
+                                {myVideos.map(video => (
+                                    <Link
+                                        key={video.id}
+                                        to={`/video/${video.id}`}
+                                        className="group rounded-xl overflow-hidden hover:ring-1 hover:ring-white/20 transition-all"
+                                    >
+                                        <div className="aspect-video bg-black rounded-lg overflow-hidden mb-2">
+                                            <img
+                                                src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                alt={video.title}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
+                                            />
+                                        </div>
+                                        <p className="text-sm font-bold truncate px-1">{video.title}</p>
+                                        <div className="flex items-center gap-2 px-1 pb-2">
+                                            <span className="text-[10px] text-white/40">{video.view_count} views</span>
+                                            <span className="text-[10px] text-white/40">•</span>
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${video.status === 'published' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                {video.status}
+                                            </span>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                                    <svg className="w-8 h-8 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <p className="text-white/40 font-medium">No videos uploaded yet</p>
+                                <Link to="/upload" className="mt-4 text-primary font-bold text-sm hover:underline">
+                                    Upload your first video
+                                </Link>
+                            </div>
+                        )}
                     </motion.div>
 
                     <motion.div
