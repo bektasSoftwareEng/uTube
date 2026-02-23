@@ -43,7 +43,7 @@ const Home = () => {
         : videos.filter(video => video.category === selectedCategory);
 
     return (
-        <div className="pt-16 sm:pt-20 min-h-screen">
+        <div className="min-h-screen pt-16 sm:pt-20">
             {!searchQuery && (
                 <CategoryBar
                     selectedCategory={selectedCategory}
