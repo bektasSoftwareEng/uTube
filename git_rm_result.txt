@@ -1,5 +1,0 @@
-﻿rm 'backend/database/utube.db-shm'
-rm 'backend/database/utube.db-wal'
-rm 'backend/routes/__pycache__/auth_routes.cpython-311.pyc'
-rm 'backend/routes/__pycache__/video_routes.cpython-311.pyc'
-rm 'backend/database/__pycache__/models.cpython-311.pyc'
