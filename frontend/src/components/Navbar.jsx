@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_TOKEN, UTUBE_USER } from '../utils/authConstants';
 import ApiClient from '../utils/ApiClient';
+import { useSidebar } from '../context/SidebarContext';
 
 
 const Navbar = () => {
+    const { isSidebarOpen, toggleSidebar } = useSidebar();
     // Read from disk during initialization
     const [user, setUser] = useState(() => {
         try {
@@ -166,8 +168,42 @@ const Navbar = () => {
     return (
         <nav className="absolute top-0 left-0 right-0 z-50 glass border-b border-white/5 h-16 sm:h-20 flex items-center px-4 sm:px-8">
             <div className="flex items-center justify-between w-full max-w-[1800px] mx-auto">
-                {/* Logo Section */}
-                <div className="flex items-center gap-4 sm:gap-8">
+                {/* Logo + Hamburger Section */}
+                <div className="flex items-center gap-3 sm:gap-5">
+                    {/* Hamburger toggle */}
+                    <motion.button
+                        onClick={toggleSidebar}
+                        whileTap={{ scale: 0.88 }}
+                        className="relative w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-xl hover:bg-white/8 transition-colors shrink-0"
+                        title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                        aria-label="Toggle sidebar"
+                    >
+                        <motion.span
+                            animate={isSidebarOpen
+                                ? { rotate: 45, y: 6, width: '18px' }
+                                : { rotate: 0, y: 0, width: '18px' }}
+                            transition={{ duration: 0.22 }}
+                            className="block h-[2px] bg-white/80 rounded-full origin-center"
+                            style={{ width: 18 }}
+                        />
+                        <motion.span
+                            animate={isSidebarOpen
+                                ? { opacity: 0, scaleX: 0 }
+                                : { opacity: 1, scaleX: 1 }}
+                            transition={{ duration: 0.18 }}
+                            className="block h-[2px] bg-white/80 rounded-full"
+                            style={{ width: 14 }}
+                        />
+                        <motion.span
+                            animate={isSidebarOpen
+                                ? { rotate: -45, y: -6, width: '18px' }
+                                : { rotate: 0, y: 0, width: '12px' }}
+                            transition={{ duration: 0.22 }}
+                            className="block h-[2px] bg-white/80 rounded-full origin-center"
+                            style={{ width: 12 }}
+                        />
+                    </motion.button>
+
                     <Link to="/" className="flex items-center gap-2 group">
                         <motion.div
                             whileHover={{ rotate: -10, scale: 1.1 }}
@@ -175,7 +211,6 @@ const Navbar = () => {
                         >
                             <img src="/utube.png" alt="uTube" className="w-full h-auto object-contain drop-shadow-[0_0_10px_rgba(255,0,0,0.5)]" />
                         </motion.div>
-
                     </Link>
                 </div>
 

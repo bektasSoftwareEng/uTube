@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
+import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
 import VideoDetail from './pages/VideoDetail'
 import Login from './pages/Login'
@@ -17,12 +18,25 @@ const ProtectedRoute = ({ children }) => {
     return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
-function App() {
-    console.log('App: Initializing main layout...');
+// Utility component to strictly guard routes
+const ProtectedRoute = ({ children }) => {
+    const isAuthenticated = !!localStorage.getItem(UTUBE_TOKEN);
+    return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// Inner layout that can read sidebar state
+const AppLayout = () => {
+    const { isSidebarOpen } = useSidebar();
     return (
         <div className="min-h-screen text-white">
             <Navbar />
-            <main>
+            <Sidebar />
+            <main
+                style={{
+                    marginLeft: isSidebarOpen ? '240px' : '0px',
+                    transition: 'margin-left 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}
+            >
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/video/:id" element={<VideoDetail />} />
@@ -38,7 +52,16 @@ function App() {
                 </Routes>
             </main>
         </div>
-    )
+    );
+};
+
+function App() {
+    console.log('App: Initializing main layout...');
+    return (
+        <SidebarProvider>
+            <AppLayout />
+        </SidebarProvider>
+    );
 }
 
 export default App

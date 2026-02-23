@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
+import VideoPlayer from '../components/VideoPlayer';
 import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_USER } from '../utils/authConstants';
 
@@ -391,26 +392,16 @@ const VideoDetail = () => {
                 {/* Main Content (75% Width) */}
                 <div className="lg:col-span-3">
                     {/* Video Player */}
-                    <div className="aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 ring-1 ring-white/10">
-                        <video
-                            key={id}
-                            controls
-                            autoPlay
-                            crossOrigin="anonymous"
-                            className="w-full h-full"
+                    <div className="mb-6">
+                        <VideoPlayer
+                            src={videoSrc}
                             poster={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
                             onError={(e) => {
-                                // If the primary source fails, try the rotating fallback clip
                                 if (e.target.src !== DYNAMIC_FALLBACK) {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
-
-                        >
-                            <source src={videoSrc} type="video/mp4" />
-                            Your browser does not support the video tag.
-                        </video>
-
+                        />
                     </div>
 
                     {/* Video Info */}

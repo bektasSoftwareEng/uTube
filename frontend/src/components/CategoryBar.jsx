@@ -15,8 +15,8 @@ const categories = [
 
 const CategoryBar = ({ selectedCategory, onSelectCategory }) => {
     return (
-        <div className="w-full bg-black/30 backdrop-blur-md border-b border-white/5 relative z-40 py-2">
-            <div className="max-w-[1800px] mx-auto px-4 sm:px-8 py-1 overflow-x-auto no-scrollbar flex gap-2.5 justify-center">
+        <div className="w-full relative z-40 bg-black/40 backdrop-blur-md border-b border-white/5 h-12 flex items-center">
+            <div className="w-full px-4 sm:px-8 overflow-x-auto no-scrollbar flex gap-2.5 justify-center">
                 {categories.map((category) => (
                     <motion.button
                         key={category}
