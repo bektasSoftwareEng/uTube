@@ -221,7 +221,7 @@ const Navbar = () => {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search videos..."
+                            placeholder="Search porn videos..."
                             className="w-full bg-black/40 border border-white/10 rounded-full px-6 py-2.5 sm:py-3 focus:outline-none focus:border-primary/50 focus:shadow-[0_0_15px_rgba(255,0,0,0.3)] transition-all text-sm group-hover:bg-black/60"
                         />
                         <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/80 group-hover:text-white/40 transition-colors">
@@ -264,7 +264,7 @@ const Navbar = () => {
 
                             {/* Welcome Text */}
                             <span className="hidden sm:block text-sm font-black text-white italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
-                                Welcome, <span className="text-primary">{user?.username || 'User'}</span>
+                                Welcum, <span className="text-primary">{user?.username || 'User'}</span>
                             </span>
 
                             {/* ── Notification Bell (functional) ── */}

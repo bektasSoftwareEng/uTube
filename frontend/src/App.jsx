@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
@@ -24,6 +25,22 @@ const AppLayout = () => {
     const { isSidebarOpen } = useSidebar();
     return (
         <div className="min-h-screen text-white">
+            <Toaster
+                position="top-center"
+                toastOptions={{
+                    duration: 3500,
+                    style: {
+                        background: '#1a1a1a',
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                    },
+                    error: { style: { border: '1px solid rgba(239,68,68,0.3)' } },
+                    success: { style: { border: '1px solid rgba(34,197,94,0.3)' } },
+                }}
+            />
             <Navbar />
             <Sidebar />
             <main
