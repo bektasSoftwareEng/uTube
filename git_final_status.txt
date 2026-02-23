@@ -1,2 +1,0 @@
-﻿?? git_final_status.txt
-?? git_merge_result.txt
