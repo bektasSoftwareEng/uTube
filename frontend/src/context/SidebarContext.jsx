@@ -30,8 +30,29 @@ export const SidebarProvider = ({ children }) => {
         } catch { /* ignore */ }
     }, []);
 
+    const timeoutRef = React.useRef(null);
+
+    const handleSidebarEnter = useCallback(() => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsSidebarOpen(true);
+        try { localStorage.setItem(SIDEBAR_KEY, 'true'); } catch { /* ignore */ }
+    }, []);
+
+    const handleSidebarLeave = useCallback(() => {
+        timeoutRef.current = setTimeout(() => {
+            setIsSidebarOpen(false);
+            try { localStorage.setItem(SIDEBAR_KEY, 'false'); } catch { /* ignore */ }
+        }, 300); // 300ms to move mouse to sidebar
+    }, []);
+
     return (
-        <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, setSidebarOpen }}>
+        <SidebarContext.Provider value={{
+            isSidebarOpen,
+            toggleSidebar,
+            setSidebarOpen,
+            handleSidebarEnter,
+            handleSidebarLeave
+        }}>
             {children}
         </SidebarContext.Provider>
     );

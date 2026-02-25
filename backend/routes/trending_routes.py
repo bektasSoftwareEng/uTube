@@ -6,6 +6,7 @@ Returns trending videos for Netflix-style hero carousel.
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List
 
 from backend.database import get_db
@@ -38,10 +39,13 @@ def get_trending_videos(
     if limit > 20:
         limit = 20
     
-    # Query top viewed videos with joined author relationship
+    # Query videos ordered by (likes / max(views, 1)) descending
+    # Multiply by 1.0 to force floating point division instead of integer floor division
+    ratio_expr = (func.coalesce(Video.like_count, 0) * 1.0) / func.greatest(Video.view_count, 1)
+    
     videos = db.query(Video)\
         .options(joinedload(Video.author))\
-        .order_by(Video.view_count.desc())\
+        .order_by(ratio_expr.desc())\
         .limit(limit)\
         .all()
     
