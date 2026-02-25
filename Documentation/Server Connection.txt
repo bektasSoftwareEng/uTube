@@ -1,0 +1,29 @@
+ssh root@37.148.214.28
+cd /var/www/uTube
+
+find /var/www/uTube/backend -name "*.db" -delete --> Veritabanını silme
+ardından backendi yeniden başlat --> pm2 restart utube-backend
+
+1. Eski Hayalet Dosyaları Yok Et:
+İçerideki tüm eski videoları, fotoğrafları ve thumbnailleri siliyoruz (Sadece içindeki dosyaları siler, klasörü bırakır):
+
+Bash
+rm -rf /var/www/uTube/storage/uploads/avatars/*
+rm -rf /var/www/uTube/storage/uploads/videos/*
+rm -rf /var/www/uTube/storage/uploads/thumbnails/*
+rm -rf /var/www/uTube/storage/uploads/previews/*
+
+2. Eksik Klasörleri Yarat (404 Hatası İçin):
+Eğer backend bu klasörleri kendi açamıyorsa diye, işi garantiye alıp biz açıyoruz:
+
+Bash
+mkdir -p /var/www/uTube/storage/uploads/avatars
+mkdir -p /var/www/uTube/storage/uploads/videos
+mkdir -p /var/www/uTube/storage/uploads/thumbnails
+mkdir -p /var/www/uTube/storage/uploads/previews
+
+chmod -R 755 /var/www/uTube/storage --> nginx'e klasör okuma izni verme
+
+nginx -t		 --
+systemctl restart nginx  -- bu iki komut nginx'i yeniden başlatır.
+

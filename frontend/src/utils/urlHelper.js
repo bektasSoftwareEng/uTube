@@ -3,7 +3,7 @@
  * Sanitizes and normalizes asset paths from the backend.
  */
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "/api";
 
 export const getValidUrl = (path, fallback) => {
     if (!path || path === "" || path.includes('synthetic')) return fallback;
@@ -31,7 +31,7 @@ export const getValidUrl = (path, fallback) => {
 
 export const getAvatarUrl = (path, username) => {
     const fallback = `https://ui-avatars.com/api/?name=${username || 'User'}&background=random&color=fff`;
-    
+
     if (!path || path === "" || path.includes('default') || path.includes('synthetic')) {
         return fallback;
     }
