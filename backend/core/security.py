@@ -103,26 +103,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create a JWT access token.
-    
-    Args:
-        data: Dictionary of data to encode in the token (e.g., {"sub": user_id})
-        expires_delta: Optional custom expiration time
-        
-    Returns:
-        Encoded JWT token string
-        
-    Example:
-        >>> token = create_access_token({"sub": "user123"})
-        >>> print(token)
-        eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-    """
-    to_encode = data.copy()
-    
-    # Ensure 'sub' is a string (requirement for some JWT libraries)
-    if "sub" in to_encode:
-        to_encode["sub"] = str(to_encode["sub"])
+    # Build payload carefully to ensure all values are standard serializable strings/ints
+    to_encode = {}
+    for key, value in data.items():
+        to_encode[key] = str(value) if key == "sub" else value
     
     # Set expiration time
     if expires_delta:
@@ -130,11 +114,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode["exp"] = expire
     
     # Encode the JWT
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict:

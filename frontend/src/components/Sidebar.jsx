@@ -5,6 +5,7 @@ import { useSidebar } from '../context/SidebarContext';
 import { UTUBE_USER } from '../utils/authConstants';
 import ApiClient from '../utils/ApiClient';
 import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getBlockedChannelsData, unblockChannel } from './VideoGrid';
 
 // ── Duration formatter ──
 const fmtDuration = (s) => {
@@ -129,7 +130,7 @@ const VideoItem = ({ video }) => {
 };
 
 // ── Channel Item — mirrors avatar style from VideoCard ──
-const ChannelItem = ({ channel }) => {
+const ChannelItem = ({ channel, onAction, actionTitle }) => {
     const username = channel.author?.username;
     return (
         <div className="flex items-center gap-3 px-4 py-2 mx-1 rounded-xl hover:bg-white/[0.06] transition-colors group cursor-default">
@@ -152,13 +153,30 @@ const ChannelItem = ({ channel }) => {
                 </p>
             </div>
 
-            {/* Red accent arrow on hover */}
-            <svg
-                className="w-3 h-3 text-primary/0 group-hover:text-primary/60 transition-colors shrink-0"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
+            {/* Red accent arrow on hover acting as an action button */}
+            {onAction && (
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (channel.author?.id) onAction(channel.author.id);
+                    }}
+                    className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 text-primary/0 group-hover:text-primary transition-colors shrink-0 outline-none"
+                    title={actionTitle || "Action"}
+                >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                </button>
+            )}
+            {!onAction && (
+                <svg
+                    className="w-3 h-3 text-primary/0 group-hover:text-primary/60 transition-colors shrink-0"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+            )}
         </div>
     );
 };
@@ -170,7 +188,7 @@ const Divider = () => (
 
 // ── Main Sidebar ──
 const Sidebar = () => {
-    const { isSidebarOpen } = useSidebar();
+    const { isSidebarOpen, handleSidebarEnter, handleSidebarLeave } = useSidebar();
 
     const [user, setUser] = useState(() => {
         try {
@@ -182,7 +200,8 @@ const Sidebar = () => {
     const [subs, setSubs] = useState([]);
     const [history, setHistory] = useState([]);
     const [liked, setLiked] = useState([]);
-    const [loading, setLoading] = useState({ subs: false, history: false, liked: false });
+    const [blocked, setBlocked] = useState([]);
+    const [loading, setLoading] = useState({ subs: false, history: false, liked: false, blocked: false });
 
     // Sync user with auth events
     useEffect(() => {
@@ -219,6 +238,27 @@ const Sidebar = () => {
             .then(r => setLiked(Array.isArray(r.data) ? r.data : r.data?.videos || []))
             .catch(() => setLiked([]))
             .finally(() => setLoading(p => ({ ...p, liked: false })));
+
+    }, [isSidebarOpen, user]);
+
+    // Sync blocked channels from local storage and listen for block events
+    useEffect(() => {
+        const syncBlocked = () => {
+            const data = getBlockedChannelsData();
+            setBlocked(data.map(c => {
+                // Return in ChannelItem format: { author: { username, profile_image } }
+                if (typeof c === 'object') return { author: c };
+                return { author: { id: c, username: `ID: ${c}` } };
+            }));
+        };
+
+        // Initial sync when sidebar opens/user changes
+        if (isSidebarOpen) {
+            syncBlocked();
+        }
+
+        window.addEventListener('utube_channel_blocked', syncBlocked);
+        return () => window.removeEventListener('utube_channel_blocked', syncBlocked);
     }, [isSidebarOpen, user]);
 
     // Deduplicated subscription channels
@@ -232,11 +272,26 @@ const Sidebar = () => {
         });
     })();
 
+    const handleUnsubscribe = async (authorId) => {
+        try {
+            await ApiClient.delete(`/auth/subscribe/${authorId}`);
+            // Optimistically update the UI by filtering out the unsubscribed channel
+            setSubs(prev => prev.filter(v => v.author?.id !== authorId));
+            // Trigger a global event so other components (like VideoDetail) can update their state
+            window.dispatchEvent(new Event('utube_subscription_changed'));
+        } catch (error) {
+            console.error("Failed to unsubscribe:", error);
+            // In a real app, maybe show a toast notification here
+        }
+    };
+
     return (
         <AnimatePresence>
             {isSidebarOpen && (
                 <motion.aside
                     key="sidebar"
+                    onMouseEnter={handleSidebarEnter}
+                    onMouseLeave={handleSidebarLeave}
                     initial={{ x: -260, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: -260, opacity: 0 }}
@@ -275,7 +330,14 @@ const Sidebar = () => {
                         ) : loading.subs ? (
                             [...Array(4)].map((_, i) => <SkeletonChannel key={i} />)
                         ) : channels.length > 0 ? (
-                            channels.map(v => <ChannelItem key={v.author?.id} channel={v} />)
+                            channels.map(v => (
+                                <ChannelItem
+                                    key={v.author?.id}
+                                    channel={v}
+                                    onAction={handleUnsubscribe}
+                                    actionTitle="Unsubscribe"
+                                />
+                            ))
                         ) : (
                             <EmptyState label="No subscriptions yet" />
                         )}
@@ -324,6 +386,36 @@ const Sidebar = () => {
                             liked.map(v => <VideoItem key={v.id} video={v} />)
                         ) : (
                             <EmptyState label="No liked videos yet" />
+                        )}
+
+                        <Divider />
+
+                        {/* ── Blocked Channels ── */}
+                        <SectionHeader
+                            icon={
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                </svg>
+                            }
+                            title="Don't recommend"
+                            tag="Channels"
+                        />
+
+                        {!user ? (
+                            <SignInPlaceholder label="Sign in to see blocked channels" />
+                        ) : loading.blocked ? (
+                            [...Array(2)].map((_, i) => <SkeletonChannel key={i} />)
+                        ) : blocked.length > 0 ? (
+                            blocked.map(c => (
+                                <ChannelItem
+                                    key={c.author.username}
+                                    channel={c}
+                                    onAction={unblockChannel}
+                                    actionTitle="Undo Recommend Block"
+                                />
+                            ))
+                        ) : (
+                            <EmptyState label="No blocked channels" />
                         )}
 
                     </div>

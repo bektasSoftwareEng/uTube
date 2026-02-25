@@ -143,12 +143,8 @@ def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    # Extract token from credentials and strip whitespace
+    # credentials.credentials already contains just the token part
     token = credentials.credentials.strip()
-    
-    # Robustly handle cases where 'Bearer ' prefix might be duplicated or case-mismatched
-    if token.lower().startswith("bearer "):
-        token = token[7:].strip()
     
     # Decode token with detailed error handling
     try:

@@ -21,7 +21,6 @@ const CategoryBar = ({ selectedCategory, onSelectCategory }) => {
                     <motion.button
                         key={category}
                         onClick={() => onSelectCategory(category)}
-                        whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedCategory === category
                             ? 'bg-[#8B0000] text-white border-[#FF0000]/30 shadow-[0_0_15px_rgba(139,0,0,0.4)]'
