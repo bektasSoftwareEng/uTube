@@ -8,7 +8,7 @@ import { useSidebar } from '../context/SidebarContext';
 
 
 const Navbar = () => {
-    const { isSidebarOpen, toggleSidebar } = useSidebar();
+    const { isSidebarOpen, toggleSidebar, handleSidebarEnter, handleSidebarLeave } = useSidebar();
     // Read from disk during initialization
     const [user, setUser] = useState(() => {
         try {
@@ -173,6 +173,8 @@ const Navbar = () => {
                     {/* Hamburger toggle */}
                     <motion.button
                         onClick={toggleSidebar}
+                        onMouseEnter={handleSidebarEnter}
+                        onMouseLeave={handleSidebarLeave}
                         whileTap={{ scale: 0.88 }}
                         className="relative w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-xl hover:bg-white/8 transition-colors shrink-0"
                         title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
@@ -268,7 +270,11 @@ const Navbar = () => {
                             </span>
 
                             {/* ── Notification Bell (functional) ── */}
-                            <div className="relative">
+                            <div
+                                className="relative"
+                                onMouseEnter={() => { setIsNotifOpen(true); setIsMenuOpen(false); fetchNotifications(); }}
+                                onMouseLeave={() => setIsNotifOpen(false)}
+                            >
                                 <motion.button
                                     ref={bellRef}
                                     whileHover={{ scale: 1.1 }}
@@ -369,7 +375,11 @@ const Navbar = () => {
                                 </AnimatePresence>
                             </div>
 
-                            <div className="relative">
+                            <div
+                                className="relative"
+                                onMouseEnter={() => { setIsMenuOpen(true); setIsNotifOpen(false); }}
+                                onMouseLeave={() => setIsMenuOpen(false)}
+                            >
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
@@ -399,6 +409,18 @@ const Navbar = () => {
                                                 <p className="font-bold text-white truncate text-sm">@{user?.username || 'Member'}</p>
                                                 <p className="text-[10px] font-medium text-primary uppercase tracking-tighter mt-1 opacity-60">ID: {user?.id || '—'}</p>
                                             </div>
+
+                                            <Link
+                                                to="/dashboard"
+                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 font-bold text-sm transition-colors"
+                                                style={{ color: 'var(--gold)' }}
+                                                onClick={() => setIsMenuOpen(false)}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                                </svg>
+                                                Dashboard
+                                            </Link>
 
                                             <Link
                                                 to="/profile"

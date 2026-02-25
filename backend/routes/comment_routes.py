@@ -31,6 +31,7 @@ router = APIRouter(tags=["Comments"])
 class CommentCreate(BaseModel):
     """Request model for creating a comment."""
     text: str = Field(..., min_length=1, max_length=1000, description="Comment text")
+    parent_id: Optional[int] = Field(None, description="Parent comment ID for replies")
     
     class Config:
         json_schema_extra = {
@@ -50,9 +51,13 @@ class CommentResponse(BaseModel):
     dislike_count: int = 0
     user_has_liked: bool = False
     user_has_disliked: bool = False
+    parent_id: Optional[int] = None
+    replies: List["CommentResponse"] = []
     
     class Config:
         from_attributes = True
+
+CommentResponse.model_rebuild()
 
 
 class CommentLikeResponse(BaseModel):
@@ -102,9 +107,13 @@ def _get_comment_counts(db: Session, comment_id: int, user_id: Optional[int] = N
     return like_count, dislike_count, user_has_liked, user_has_disliked
 
 
-def _format_comment(comment, db: Session, user_id: Optional[int] = None):
-    """Format a comment with like/dislike information."""
+def _format_comment(comment, db: Session, user_id: Optional[int] = None, include_replies: bool = True):
+    """Format a comment with like/dislike information, optionally including replies."""
     lc, dc, uhl, uhd = _get_comment_counts(db, comment.id, user_id)
+    replies_data = []
+    if include_replies:
+        for reply in comment.replies.order_by(Comment.created_at.asc()):
+            replies_data.append(_format_comment(reply, db, user_id, include_replies=False))
     return CommentResponse(
         id=comment.id,
         text=comment.text,
@@ -117,7 +126,9 @@ def _format_comment(comment, db: Session, user_id: Optional[int] = None):
         like_count=lc,
         dislike_count=dc,
         user_has_liked=uhl,
-        user_has_disliked=uhd
+        user_has_disliked=uhd,
+        parent_id=comment.parent_id,
+        replies=replies_data
     )
 
 
@@ -132,30 +143,47 @@ def create_comment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Add a comment to a video (protected route)."""
+    """Add a top-level comment or a reply to a video (protected route)."""
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    # Validate parent comment if replying
+    if comment_data.parent_id:
+        parent = db.query(Comment).filter(
+            Comment.id == comment_data.parent_id,
+            Comment.video_id == video_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent comment not found")
     
-    new_comment = Comment(text=comment_data.text, user_id=current_user.id, video_id=video_id)
+    new_comment = Comment(
+        text=comment_data.text,
+        user_id=current_user.id,
+        video_id=video_id,
+        parent_id=comment_data.parent_id
+    )
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
     
-    return CommentResponse(
-        id=new_comment.id,
-        text=new_comment.text,
-        created_at=new_comment.created_at.isoformat(),
-        author={
+    # Return a dict so FastAPI correctly builds the CommentResponse model
+    return {
+        "id": new_comment.id,
+        "text": new_comment.text,
+        "created_at": new_comment.created_at.isoformat(),
+        "author": {
             "id": current_user.id,
             "username": current_user.username,
             "profile_image": current_user.profile_image
         },
-        like_count=0,
-        dislike_count=0,
-        user_has_liked=False,
-        user_has_disliked=False
-    )
+        "like_count": 0,
+        "dislike_count": 0,
+        "user_has_liked": False,
+        "user_has_disliked": False,
+        "parent_id": new_comment.parent_id,
+        "replies": []
+    }
 
 
 @router.get("/videos/{video_id}/comments", response_model=List[CommentResponse])
@@ -166,7 +194,7 @@ def get_video_comments(
     current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
-    """Get all comments for a video with like/dislike information."""
+    """Get top-level comments for a video (replies are nested inside each comment)."""
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
@@ -174,9 +202,10 @@ def get_video_comments(
     if limit > 100:
         limit = 100
     
+    # Only return top-level comments (parent_id IS NULL); replies come nested
     comments = db.query(Comment)\
         .options(joinedload(Comment.author))\
-        .filter(Comment.video_id == video_id)\
+        .filter(Comment.video_id == video_id, Comment.parent_id == None)\
         .order_by(Comment.created_at.desc())\
         .offset(skip)\
         .limit(limit)\
