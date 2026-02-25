@@ -222,6 +222,7 @@ class Comment(Base):
     # Foreign Keys
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True, index=True)
     
     # Relationships
     author = relationship(
@@ -239,6 +240,21 @@ class Comment(Base):
         back_populates="comment",
         cascade="all, delete-orphan",
         lazy="dynamic"
+    )
+
+    replies = relationship(
+        "Comment",
+        back_populates="parent_comment",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+        foreign_keys="Comment.parent_id"
+    )
+
+    parent_comment = relationship(
+        "Comment",
+        back_populates="replies",
+        remote_side="Comment.id",
+        foreign_keys="Comment.parent_id"
     )
     
     def __repr__(self):

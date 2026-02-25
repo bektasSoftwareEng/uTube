@@ -13,6 +13,7 @@ from jose import JWTError
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import shutil
@@ -21,7 +22,7 @@ from pathlib import Path
 import uuid
 
 from backend.database import get_db
-from backend.database.models import User, Subscription
+from backend.database.models import User, Subscription, Video
 from backend.core.config import AVATARS_DIR
 from backend.core.security import (
     hash_password,
@@ -106,6 +107,9 @@ class UserResponse(BaseModel):
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
     created_at: str
+    subscriber_count: int = 0
+    video_count: int = 0
+    total_views: int = 0
     
     class Config:
         from_attributes = True
@@ -139,12 +143,8 @@ def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    # Extract token from credentials and strip whitespace
+    # credentials.credentials already contains just the token part
     token = credentials.credentials.strip()
-    
-    # Robustly handle cases where 'Bearer ' prefix might be duplicated or case-mismatched
-    if token.lower().startswith("bearer "):
-        token = token[7:].strip()
     
     # Decode token with detailed error handling
     try:
@@ -339,8 +339,39 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     )
 
 
+def build_user_response(user: User, db: Session) -> UserResponse:
+    """Build a UserResponse with live stats from the database."""
+    subscriber_count = db.query(func.count(Subscription.id)).filter(
+        Subscription.following_id == user.id
+    ).scalar() or 0
+    
+    video_count = db.query(func.count(Video.id)).filter(
+        Video.user_id == user.id
+    ).scalar() or 0
+    
+    total_views = db.query(func.coalesce(func.sum(Video.view_count), 0)).filter(
+        Video.user_id == user.id
+    ).scalar() or 0
+    
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        profile_image=user.profile_image,
+        stream_title=user.stream_title,
+        stream_category=user.stream_category,
+        created_at=user.created_at.isoformat(),
+        subscriber_count=subscriber_count,
+        video_count=video_count,
+        total_views=total_views
+    )
+
+
 @router.get("/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Get current authenticated user information.
     
@@ -351,17 +382,9 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
         current_user: Current authenticated user (from dependency)
         
     Returns:
-        User information
+        User information with live stats
     """
-    return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        profile_image=current_user.profile_image,
-        stream_title=current_user.stream_title,
-        stream_category=current_user.stream_category,
-        created_at=current_user.created_at.isoformat()
-    )
+    return build_user_response(current_user, db)
 
 
 @router.put("/me", response_model=UserResponse)
@@ -480,15 +503,7 @@ def update_user_profile(
             detail=f"Database update failed: {str(e)}"
         )
         
-    return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        profile_image=current_user.profile_image,
-        stream_title=current_user.stream_title,
-        stream_category=current_user.stream_category,
-        created_at=current_user.created_at.isoformat()
-    )
+    return build_user_response(current_user, db)
 
 
 # ============================================================================
@@ -503,7 +518,7 @@ def subscribe_to_user(
 ):
     """Subscribe to a user channel."""
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot subscribe to yourself")
+        raise HTTPException(status_code=400, detail="SELF_SUBSCRIPTION_NOT_ALLOWED")
     
     user_to_follow = db.query(User).filter(User.id == user_id).first()
     if not user_to_follow:

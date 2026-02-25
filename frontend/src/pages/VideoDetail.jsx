@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import ApiClient from '../utils/ApiClient';
 import { VideoCard } from '../components/VideoGrid';
+import VideoPlayer from '../components/VideoPlayer';
 import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_USER } from '../utils/authConstants';
 
@@ -48,14 +50,20 @@ const VideoDetail = () => {
     const [commentLoading, setCommentLoading] = useState(false);
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [commentCount, setCommentCount] = useState(0);
+    const [replyingTo, setReplyingTo] = useState(null); // { id, username }
+    const [replyText, setReplyText] = useState('');
+    const [expandedReplies, setExpandedReplies] = useState({});
+    const [replySubmitting, setReplySubmitting] = useState(false);
 
-    // Get current user from localStorage
+    // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
         try {
             const data = localStorage.getItem(UTUBE_USER);
             return data ? JSON.parse(data) : null;
         } catch { return null; }
     };
+    const currentUser = getCurrentUser();
+    const isOwnChannel = currentUser && video?.author && currentUser.id === video.author.id;
 
     // ══════════════════════════════════════════════════
     // Fetch Video Data
@@ -169,7 +177,9 @@ const VideoDetail = () => {
             try {
                 const res = await ApiClient.get(`/videos/${id}/comments`);
                 setComments(res.data);
-                setCommentCount(res.data.length);
+                // Count all comments including replies
+                const totalCount = res.data.reduce((s, c) => s + 1 + (c.replies?.length || 0), 0);
+                setCommentCount(totalCount);
             } catch (err) {
                 console.warn('Could not fetch comments:', err);
             } finally {
@@ -210,24 +220,37 @@ const VideoDetail = () => {
     const handleSubscribe = async () => {
         const userStr = localStorage.getItem(UTUBE_USER);
         if (!userStr) {
-            alert("Please sign in to subscribe");
+            toast.error('Abone olmak için giriş yapın');
             return;
         }
         if (!video?.author) return;
+
+        // Frontend guard: prevent self-subscribe
+        if (isOwnChannel) {
+            toast.error('Kendi kanalınıza abone olamazsınız!');
+            return;
+        }
 
         setSubLoading(true);
         try {
             if (isSubscribed) {
                 await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(false);
+                toast.success('Abonelikten çıkıldı');
             } else {
                 await ApiClient.post(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(true);
+                toast.success('Abone olundu!');
             }
         } catch (error) {
             console.error("Subscription action failed:", error);
-            if (error.response?.data?.detail === "Already subscribed") {
+            const detail = error.response?.data?.detail;
+            if (detail === 'SELF_SUBSCRIPTION_NOT_ALLOWED') {
+                toast.error('Kendi kanalınıza abone olamazsınız!');
+            } else if (detail === 'Already subscribed') {
                 setIsSubscribed(true);
+            } else {
+                toast.error('Abonelik işlemi başarısız oldu');
             }
         } finally {
             setSubLoading(false);
@@ -293,9 +316,48 @@ const VideoDetail = () => {
             setNewComment('');
         } catch (err) {
             console.error("Comment submission failed:", err);
-            alert(err.response?.data?.detail || "Failed to post comment");
+            let msg = "Failed to post comment";
+            if (err.response?.data?.detail) {
+                msg = typeof err.response.data.detail === 'string'
+                    ? err.response.data.detail
+                    : JSON.stringify(err.response.data.detail);
+            } else if (err.message) {
+                msg = `Network or Code Error: ${err.message}`;
+            }
+            alert(`Error placing comment: ${msg}`);
         } finally {
             setCommentSubmitting(false);
+        }
+    };
+
+    const handleSubmitReply = async (e, parentId) => {
+        e.preventDefault();
+        const user = getCurrentUser();
+        if (!user) { alert('Please sign in to reply'); return; }
+        if (!replyText.trim()) return;
+
+        setReplySubmitting(true);
+        try {
+            const res = await ApiClient.post(`/videos/${id}/comments`, {
+                text: replyText.trim(),
+                parent_id: parentId
+            });
+            // Optimistically add reply to correct parent
+            setComments(prev => prev.map(c =>
+                c.id === parentId
+                    ? { ...c, replies: [...(c.replies || []), res.data] }
+                    : c
+            ));
+            setCommentCount(prev => prev + 1);
+            setReplyText('');
+            setReplyingTo(null);
+            // Auto-expand replies for this comment
+            setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
+        } catch (err) {
+            console.error('Reply submission failed:', err);
+            alert(err.response?.data?.detail || 'Failed to post reply');
+        } finally {
+            setReplySubmitting(false);
         }
     };
 
@@ -377,7 +439,6 @@ const VideoDetail = () => {
         ? getValidUrl(video.video_url, DYNAMIC_FALLBACK)
         : DYNAMIC_FALLBACK;
 
-    const currentUser = getCurrentUser();
 
     return (
         <motion.div
@@ -391,26 +452,16 @@ const VideoDetail = () => {
                 {/* Main Content (75% Width) */}
                 <div className="lg:col-span-3">
                     {/* Video Player */}
-                    <div className="aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-2xl mb-6 ring-1 ring-white/10">
-                        <video
-                            key={id}
-                            controls
-                            autoPlay
-                            crossOrigin="anonymous"
-                            className="w-full h-full"
+                    <div className="mb-6">
+                        <VideoPlayer
+                            src={videoSrc}
                             poster={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
                             onError={(e) => {
-                                // If the primary source fails, try the rotating fallback clip
                                 if (e.target.src !== DYNAMIC_FALLBACK) {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
-
-                        >
-                            <source src={videoSrc} type="video/mp4" />
-                            Your browser does not support the video tag.
-                        </video>
-
+                        />
                     </div>
 
                     {/* Video Info */}
@@ -431,16 +482,25 @@ const VideoDetail = () => {
                                 <p className="font-bold">{video.author?.username}</p>
                                 <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
                             </div>
-                            <button
-                                onClick={handleSubscribe}
-                                disabled={subLoading}
-                                className={`ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isSubscribed
-                                    ? "bg-white/10 text-white hover:bg-white/20 border border-white/5"
-                                    : "bg-white text-black hover:bg-white/90"
-                                    }`}
-                            >
-                                {subLoading ? "..." : isSubscribed ? "Subscribed" : "Subscribe"}
-                            </button>
+                            {isOwnChannel ? (
+                                <Link
+                                    to="/edit-profile"
+                                    className="ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 bg-white/10 text-white hover:bg-white/20 border border-white/5 inline-block"
+                                >
+                                    Edit Profile
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={handleSubscribe}
+                                    disabled={subLoading}
+                                    className={`ml-4 px-6 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isSubscribed
+                                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/5"
+                                        : "bg-white text-black hover:bg-white/90"
+                                        }`}
+                                >
+                                    {subLoading ? "..." : isSubscribed ? "Subscribed" : "Subscribe"}
+                                </button>
+                            )}
                         </div>
 
 
@@ -481,16 +541,7 @@ const VideoDetail = () => {
                         </div>
                     </div>
 
-                    {/* Description Section */}
-                    <div className="bg-white/5 rounded-2xl p-4 lg:p-6 mb-8 hover:bg-white/[0.07] transition-colors cursor-default">
-                        <div className="font-bold text-sm mb-2 flex gap-4">
-                            <span>{video.view_count.toLocaleString()} views</span>
-                            <span>{new Date(video.upload_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                        </div>
-                        <p className="text-white/80 whitespace-pre-wrap leading-relaxed text-sm lg:text-base">
-                            {video.description || "Looking for a walkthrough or more details? Check out the chapters below or visit our creator portal!"}
-                        </p>
-                    </div>
+
 
                     {/* ══════════════════════════════════════════════════ */}
                     {/* Comment Section (fully wired to API) */}
@@ -591,7 +642,7 @@ const VideoDetail = () => {
                                                 </div>
                                                 <p className="text-white/80 text-sm leading-relaxed break-words">{comment.text}</p>
 
-                                                {/* Comment Actions: Like / Dislike / Delete */}
+                                                {/* Comment Actions: Like / Dislike / Reply / Delete */}
                                                 <div className="flex items-center gap-1 mt-2">
                                                     {/* Like */}
                                                     <button
@@ -619,6 +670,26 @@ const VideoDetail = () => {
                                                         </svg>
                                                         {comment.dislike_count > 0 && <span>{comment.dislike_count}</span>}
                                                     </button>
+
+                                                    {/* Reply Button */}
+                                                    <button
+                                                        onClick={() => {
+                                                            if (replyingTo?.id === comment.id) {
+                                                                setReplyingTo(null);
+                                                                setReplyText('');
+                                                            } else {
+                                                                setReplyingTo({ id: comment.id, username: comment.author?.username });
+                                                                setReplyText('');
+                                                            }
+                                                        }}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold transition-colors ${replyingTo?.id === comment.id ? 'text-[var(--gold)] bg-[var(--gold)]/10' : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                        </svg>
+                                                        Reply
+                                                    </button>
+
                                                     {/* Delete — own comments only */}
                                                     {currentUser && currentUser.id === comment.author?.id && (
                                                         <button
@@ -629,6 +700,117 @@ const VideoDetail = () => {
                                                         </button>
                                                     )}
                                                 </div>
+
+                                                {/* Inline Reply Form */}
+                                                <AnimatePresence>
+                                                    {replyingTo?.id === comment.id && (
+                                                        <motion.form
+                                                            initial={{ opacity: 0, height: 0 }}
+                                                            animate={{ opacity: 1, height: 'auto' }}
+                                                            exit={{ opacity: 0, height: 0 }}
+                                                            onSubmit={(e) => handleSubmitReply(e, comment.id)}
+                                                            className="mt-3 flex gap-3 items-start"
+                                                        >
+                                                            <div className="w-7 h-7 rounded-full overflow-hidden bg-surface shrink-0 border border-white/10">
+                                                                <img
+                                                                    src={getAvatarUrl(getCurrentUser()?.profile_image, getCurrentUser()?.username)}
+                                                                    alt="You"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="relative">
+                                                                    <span className="text-[var(--gold)] text-xs font-bold mr-1">@{replyingTo.username}</span>
+                                                                    <input
+                                                                        type="text"
+                                                                        autoFocus
+                                                                        value={replyText}
+                                                                        onChange={(e) => setReplyText(e.target.value)}
+                                                                        placeholder="Write a reply..."
+                                                                        className="w-full bg-transparent border-b border-white/10 focus:border-[var(--gold)]/50 outline-none text-sm py-1 text-white placeholder-white/30 transition-colors"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setReplyingTo(null); setReplyText(''); }}
+                                                                        className="px-3 py-1 rounded-full text-xs font-bold text-white/50 hover:bg-white/10 transition-colors"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        type="submit"
+                                                                        disabled={replySubmitting || !replyText.trim()}
+                                                                        className="px-3 py-1 rounded-full text-xs font-black transition-colors disabled:opacity-40"
+                                                                        style={{ background: 'var(--gold)', color: 'black' }}
+                                                                    >
+                                                                        {replySubmitting ? 'Posting…' : 'Reply'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </motion.form>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Nested Replies */}
+                                                {comment.replies && comment.replies.length > 0 && (
+                                                    <div className="mt-3">
+                                                        <button
+                                                            onClick={() => setExpandedReplies(prev => ({ ...prev, [comment.id]: !prev[comment.id] }))}
+                                                            className="flex items-center gap-1.5 text-xs font-black mb-3 transition-colors"
+                                                            style={{ color: 'var(--gold)' }}
+                                                        >
+                                                            <svg className={`w-3.5 h-3.5 transition-transform ${expandedReplies[comment.id] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                                            </svg>
+                                                            {expandedReplies[comment.id]
+                                                                ? `Hide ${comment.replies.length} ${comment.replies.length === 1 ? 'reply' : 'replies'}`
+                                                                : `${comment.replies.length} ${comment.replies.length === 1 ? 'reply' : 'replies'}`
+                                                            }
+                                                        </button>
+
+                                                        <AnimatePresence>
+                                                            {expandedReplies[comment.id] && (
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, height: 0 }}
+                                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                                    exit={{ opacity: 0, height: 0 }}
+                                                                    className="space-y-4 pl-4 border-l-2 border-white/5"
+                                                                >
+                                                                    {comment.replies.map((reply) => (
+                                                                        <div key={reply.id} className="flex gap-3 group/reply">
+                                                                            <div className="w-7 h-7 rounded-full overflow-hidden bg-surface shrink-0 border border-white/10">
+                                                                                <img
+                                                                                    src={getAvatarUrl(reply.author?.profile_image, reply.author?.username)}
+                                                                                    alt={reply.author?.username}
+                                                                                    className="w-full h-full object-cover"
+                                                                                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${reply.author?.username || 'U'}&background=random&color=fff&size=40`; }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                                    <span className="font-bold text-xs">@{reply.author?.username}</span>
+                                                                                    <span className="text-white/20 text-[10px]">
+                                                                                        {new Date(reply.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p className="text-white/70 text-xs leading-relaxed break-words">{reply.text}</p>
+                                                                                {currentUser && currentUser.id === reply.author?.id && (
+                                                                                    <button
+                                                                                        onClick={() => handleDeleteComment(reply.id)}
+                                                                                        className="mt-1 text-[10px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover/reply:opacity-100"
+                                                                                    >
+                                                                                        Delete
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </div>
+                                                )}
                                             </div>
                                         </motion.div>
                                     ))}
@@ -636,7 +818,7 @@ const VideoDetail = () => {
                             </div>
                         ) : (
                             <div className="py-12 text-center">
-                                <p className="text-white/30 text-sm">No comments yet. Be the first to comment!</p>
+                                <p className="text-white/30 text-sm">No comments.</p>
                             </div>
                         )}
                     </div>
