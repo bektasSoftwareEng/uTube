@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
+import { FLV_BASE_URL, RTMP_URL } from '../utils/urlHelper';
 import { toast } from 'react-hot-toast';
 import flvjs from 'flv.js';
 
@@ -38,7 +39,7 @@ const LiveStudio = () => {
     const chatEndRef = useRef(null);
 
     // Hardcoded for UI demo
-    const rtmpUrl = "rtmp://127.0.0.1:1935/live";
+    const rtmpUrl = RTMP_URL;
 
     const initPlayer = () => {
         if (isConnecting) return; // Spam koruması: Zaten bağlanıyorsa tekrar basmayı engelle
@@ -49,7 +50,7 @@ const LiveStudio = () => {
         }
 
         // Sabit ve kesin adresimiz:
-        const url = `http://127.0.0.1:8080/live/user2.flv`;
+        const url = `${FLV_BASE_URL}/user2.flv`;
         console.log("BAĞLANTI DENENİYOR: ", url);
 
         const player = flvjs.createPlayer({
