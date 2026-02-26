@@ -20,9 +20,13 @@ import shutil
 import os
 from pathlib import Path
 import uuid
+import random
+import string
+from datetime import datetime, timedelta
 
 from backend.database import get_db
 from backend.database.models import User, Subscription, Video
+from backend.services.mail_service import send_verification_email
 from backend.core.config import AVATARS_DIR
 from backend.core.security import (
     hash_password,
@@ -113,6 +117,19 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class VerifyEmailRequest(BaseModel):
+    """Request model for verifying email OTP."""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+class VerificationRequiredResponse(BaseModel):
+    """Response returned after registration, before verification."""
+    message: str
+    email: str
+    status: str = "verification_required"
 
 
 # ============================================================================
@@ -219,7 +236,7 @@ def get_optional_user(
 # Routes
 # ============================================================================
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """
     Register a new user account.
@@ -229,18 +246,9 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     2. Check if email/username already exists
     3. Validate password strength
     4. Hash password
-    5. Create user in database
-    6. Generate JWT token
-    
-    Args:
-        user_data: User registration data
-        db: Database session
-        
-    Returns:
-        JWT access token and user info
-        
-    Raises:
-        HTTPException 400: If email/username exists or validation fails
+    5. Generate 6-digit verification code and expiry
+    6. Create user in database (is_verified = False)
+    7. Send verification email
     """
     # Validate email format
     if not validate_email(user_data.email):
@@ -276,27 +284,64 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Hash password
     hashed_password = hash_password(user_data.password)
     
-    # Create new user with secure auto-generated stream key
+    # Generate 6-digit OTP
+    verification_code = ''.join(random.choices(string.digits, k=6))
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    
+    # Create new user
     new_user = User(
         username=user_data.username,
         email=user_data.email,
         password_hash=hashed_password,
-        stream_key=generate_stream_key()
+        stream_key=generate_stream_key(),
+        is_verified=False,
+        verification_code=verification_code,
+        verification_expires_at=expires_at
     )
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
-    # Generate access token
-    access_token = create_access_token({"sub": new_user.id})
+    # Send email
+    send_verification_email(new_user.email, verification_code)
     
-    return Token(
-        access_token=access_token,
-        user_id=new_user.id,
-        username=new_user.username
+    return VerificationRequiredResponse(
+        message="Please check your email for the 6-digit verification code.",
+        email=new_user.email
     )
 
+@router.post("/verify-email", response_model=Token)
+def verify_email(data: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """
+    Verify the 6-digit OTP and generate JWT token.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+    if user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already verified")
+        
+    if not user.verification_code or user.verification_code != data.code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification code")
+        
+    if user.verification_expires_at and datetime.utcnow() > user.verification_expires_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code has expired. Please register again.")
+        
+    # Verification successful
+    user.is_verified = True
+    user.verification_code = None
+    user.verification_expires_at = None
+    db.commit()
+    
+    # Generate access token immediately after verification
+    access_token = create_access_token({"sub": user.id})
+    return Token(
+        access_token=access_token,
+        user_id=user.id,
+        username=user.username
+    )
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
@@ -327,6 +372,12 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before logging in."
         )
     
     # Generate access token
