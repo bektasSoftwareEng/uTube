@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useBlocker } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
+import { getMediaUrl } from '../utils/urlHelper';
 import { UTUBE_TOKEN } from '../utils/authConstants';
 import DOMPurify from 'dompurify';
 
@@ -164,7 +165,7 @@ const VideoWallBackground = ({ videoUrl }) => {
                 // Pathing: Include trailing slash
                 const response = await ApiClient.get('/videos/');
                 if (response.data && response.data.length > 0) {
-                    setVideoSource(`http://localhost:8000${response.data[0].video_url}`);
+                    setVideoSource(getMediaUrl(response.data[0].video_url));
                 } else {
                     setVideoSource(null);
                 }
@@ -706,7 +707,7 @@ const Upload = () => {
                                                 className={`relative group cursor-pointer aspect-video bg-black rounded-xl overflow-hidden border-2 transition-all duration-300 shadow-xl ${selectedPreviewFrame === frame ? 'border-[#e50914] z-10 shadow-[0_0_20px_rgba(229,9,20,0.5)] ring-2 ring-[#e50914]/30' : 'border-transparent hover:border-gray-600 hover:shadow-2xl hover:shadow-red-900/40'} ${index === 0 ? 'origin-left' : (index === previewFrames.length - 1 ? 'origin-right' : 'origin-center')}`}
                                             >
                                                 <div className="absolute top-0 left-0 w-full bg-black/80 text-white text-[10px] text-center py-1 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest font-bold z-20">Click to Select</div>
-                                                <img src={DOMPurify.sanitize(`http://localhost:8000/storage/uploads/previews/${encodeURIComponent(frame.split('/').pop())}?t=${uploadTimestamp}`, { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ })} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_THUMBNAIL; }} />
+                                                <img src={DOMPurify.sanitize(getMediaUrl(`/storage/uploads/previews/${encodeURIComponent(frame.split('/').pop())}?t=${uploadTimestamp}`), { ALLOWED_URI_REGEXP: /^(?:http:|https:|blob:)/ })} alt={`Frame ${index + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_THUMBNAIL; }} />
                                                 {selectedPreviewFrame === frame && <div className="absolute inset-0 bg-[#e50914]/20 flex items-center justify-center backdrop-blur-[1px]"><div className="bg-[#e50914] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg transform scale-110 border border-white/20">Selected</div></div>}
                                                 <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-[10px] text-white font-mono opacity-0 group-hover:opacity-100 transition-opacity border border-white/10">FRAME {index + 1}</div>
                                             </motion.div>

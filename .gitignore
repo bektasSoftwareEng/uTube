@@ -1,33 +1,45 @@
+# === Python / Backend Çöpleri ===
 __pycache__/
 *.pyc
-backend/database/utube.db
-backend/database/utube.db-shm
-backend/database/utube.db-wal
-storage/
-*.tmp
-git_*_temp.txt
-git_current_branch.txt
-.env
+venv/
+
+# === Node.js / Frontend Çöpleri ===
 node_modules/
 dist/
-venv/
-# CodeQL Local Scans
-codeql-db/
-guvenlik-raporu.csv
-backend/database/.db-shm
-backend/database/.db-wal
-backend/database/utube.db-wal
-backend/database/utube.db-shm
-# Database
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Veritabanı Dosyaları (GİZLİ) ===
 *.db
 *.sqlite
 *.sqlite3
 *.db-journal
 *.db-wal
 *.db-shm
+backend/database/utube.db
 
-CodeQL Artifacts
+# === Medya ve Depolama ===
+storage/
+*.mp4
+*.tmp
+
+# === Ortam Değişkenleri (Environment) ===
+.env
+.env.local
+.env.development
+.env.staging
+.env*.local
+!.env.example
+!.env.production
+
+# === Git & İşletim Sistemi Geçici Dosyaları ===
+git_*_temp.txt
+git_current_branch.txt
+.DS_Store
+Thumbs.db
+
+# === CodeQL ve Güvenlik Raporları ===
 codeql-db/
 codeql-report.csv
-*.mp4
-codeql-report.csv
+guvenlik-raporu.csv
