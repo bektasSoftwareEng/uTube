@@ -49,6 +49,11 @@ class User(Base):
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
     
+    # Email Verification
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verification_code = Column(String(6), nullable=True)
+    verification_expires_at = Column(DateTime, nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
