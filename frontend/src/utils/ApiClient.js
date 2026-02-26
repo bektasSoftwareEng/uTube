@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { UTUBE_TOKEN, UTUBE_USER } from './authConstants';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const ApiClient = axios.create({
-    baseURL: '/api/v1',
+    baseURL: `${API_BASE}/v1`,
     headers: {
         'Content-Type': 'application/json',
     },
