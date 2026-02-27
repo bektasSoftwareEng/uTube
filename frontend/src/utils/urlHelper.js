@@ -30,7 +30,9 @@ export const getValidUrl = (path, fallback) => {
         normalizedPath = `/${normalizedPath}`;
     }
 
-    return `${API_BASE_URL}${normalizedPath}`;
+    // Media paths should NEVER point to API_BASE_URL (/api), 
+    // they should go directly to the storage container.
+    return `${MEDIA_BASE_URL}${normalizedPath}`;
 };
 
 /**

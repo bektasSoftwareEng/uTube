@@ -2,9 +2,11 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
+import { UTUBE_TOKEN, UTUBE_USER } from '../utils/authConstants';
 
 // ── Validation helpers (mirrors backend security.py rules) ──
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// Stricter RFC 5322 approximation logic
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 const PASSWORD_RULES = [
     { test: (p) => p.length >= 8, label: 'At least 8 characters' },
@@ -22,6 +24,9 @@ const Register = () => {
     });
 
     const [loading, setLoading] = useState(false);
+    const [emailChecking, setEmailChecking] = useState(false);
+    const [isEmailVerified, setIsEmailVerified] = useState(null); // null = unverified, true = ok, false = bad
+
     const [error, setError] = useState('');
     const [touched, setTouched] = useState({});
     const navigate = useNavigate();
@@ -34,10 +39,37 @@ const Register = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
 
-    const handleBlur = useCallback((e) => {
-        const { name } = e.target;
+    const handleBlur = useCallback(async (e) => {
+        const { name, value } = e.target;
         setTouched(prev => ({ ...prev, [name]: true }));
-    }, []);
+
+        // Only check email if it matches basic regex first
+        if (name === 'email' && value.length > 0) {
+            if (!EMAIL_REGEX.test(value)) {
+                setIsEmailVerified(false);
+                return;
+            }
+
+            setEmailChecking(true);
+            setIsEmailVerified(null);
+
+            try {
+                const res = await ApiClient.post('/auth/validate-email', { email: value });
+                if (res.status === 200) {
+                    setIsEmailVerified(true);
+                    // Clear overarching error if they just fixed a bad email
+                    setError(prev => prev.includes('email') ? '' : prev);
+                }
+            } catch (err) {
+                setIsEmailVerified(false);
+                if (err.response?.data?.detail) {
+                    setError(err.response.data.detail);
+                }
+            } finally {
+                setEmailChecking(false);
+            }
+        }
+    }, [formData.email]);
 
     // ── Computed validation state ──
     const emailValid = EMAIL_REGEX.test(formData.email);
@@ -48,7 +80,7 @@ const Register = () => {
     const passwordValid = passwordChecks.every((c) => c.passed);
     const confirmValid = formData.password === formData.confirmPassword && formData.confirmPassword.length > 0;
     const usernameValid = formData.username.length >= 3 && formData.username.length <= 50;
-    const formValid = emailValid && passwordValid && confirmValid && usernameValid;
+    const formValid = emailValid && passwordValid && confirmValid && usernameValid && isEmailVerified === true;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -56,7 +88,11 @@ const Register = () => {
         setTouched({ username: true, email: true, password: true, confirmPassword: true });
 
         if (!formValid) {
-            setError('Please fix the highlighted errors before submitting.');
+            if (isEmailVerified !== true) {
+                setError('Please provide a working email address and wait for verification.');
+            } else {
+                setError('Please fix the highlighted errors before submitting.');
+            }
             return;
         }
 
@@ -107,8 +143,11 @@ const Register = () => {
         </div>
     );
 
-    const inputBorderClass = (fieldName, isValid) => {
+    const inputBorderClass = (fieldName, isValid, customOverride = null) => {
         if (!touched[fieldName] || formData[fieldName] === '') return 'border-gray-800';
+        if (customOverride !== null) {
+            return customOverride ? 'border-green-500/50' : 'border-red-500/50';
+        }
         return isValid ? 'border-green-500/50' : 'border-red-500/50';
     };
 
@@ -176,7 +215,6 @@ const Register = () => {
                         />
                     </div>
 
-                    {/* Email */}
                     <div className="group">
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
                             Email Address
@@ -186,16 +224,29 @@ const Register = () => {
                             name="email"
                             required
                             value={formData.email}
-                            onChange={handleChange}
+                            onChange={(e) => {
+                                handleChange(e);
+                                setIsEmailVerified(null); // Reset on un-type
+                            }}
                             onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid, isEmailVerified)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                             placeholder="name@example.com"
                         />
-                        <FieldHint
-                            show={touched.email && formData.email.length > 0}
-                            valid={emailValid}
-                            text={emailValid ? 'Valid email' : 'Enter a valid email address'}
-                        />
+                        {/* Live Backend Email Verification Field Hint */}
+                        <div className="min-h-[20px] mt-1 ml-1">
+                            {touched.email && formData.email.length > 0 && (
+                                <p className={`text-xs font-medium transition-opacity duration-200 
+                                  ${emailChecking ? 'text-gray-400'
+                                        : isEmailVerified ? 'text-green-400'
+                                            : 'text-red-400'}`}>
+                                    {emailChecking
+                                        ? '⏳ Checking email...'
+                                        : isEmailVerified
+                                            ? '✓ Email is verified'
+                                            : '✗ Invalid email or domain'}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     {/* Password */}
@@ -269,7 +320,7 @@ const Register = () => {
                     </p>
                 </div>
             </motion.div>
-        </div>
+        </div >
     );
 };
 

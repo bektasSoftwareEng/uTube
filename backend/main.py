@@ -40,10 +40,10 @@ app = FastAPI(
     redoc_url=f"{API_PREFIX}/redoc",
 )
 
-# Configure CORS - Allow all for development to fix 403/CORS issues
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

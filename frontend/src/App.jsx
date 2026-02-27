@@ -12,6 +12,7 @@ import EditProfile from './pages/EditProfile'
 import LiveStudio from './pages/LiveStudio'
 import WatchPage from './pages/WatchPage';
 import Dashboard from './pages/Dashboard';
+import MyChannel from './pages/MyChannel';
 import { UTUBE_TOKEN } from './utils/authConstants'
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 
@@ -63,6 +64,7 @@ const AppLayout = () => {
                     <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
                     <Route path="/live" element={<ProtectedRoute><LiveStudio /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/channel/:username" element={<ProtectedRoute><MyChannel /></ProtectedRoute>} />
                 </Routes>
             </main>
         </div>
