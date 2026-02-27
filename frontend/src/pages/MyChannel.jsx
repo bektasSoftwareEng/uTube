@@ -5,6 +5,7 @@ import { UTUBE_USER } from '../utils/authConstants';
 import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import ApiClient from '../utils/ApiClient';
 import toast from 'react-hot-toast';
+import DOMPurify from 'dompurify';
 
 // ─── Edit Video Modal ───────────────────────────────────────────────────────
 const EditVideoModal = ({ video, onClose, onSaved }) => {
@@ -174,7 +175,7 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                         <div className="relative h-32 md:h-40 rounded-xl overflow-hidden bg-white/5 border-2 border-dashed border-white/20 hover:border-white/40 transition-colors group">
                             {(previewUrl || currentBannerUrl) ? (
                                 <img
-                                    src={previewUrl || currentBannerUrl}
+                                    src={DOMPurify.sanitize(previewUrl || currentBannerUrl)}
                                     alt="Banner Preview"
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity"
                                 />
@@ -321,7 +322,7 @@ const VideoCard = ({ video, onEdit, onDelete }) => {
             {/* Thumbnail */}
             <Link to={`/video/${video.id}`} className="block relative aspect-video bg-black">
                 <img
-                    src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                    src={DOMPurify.sanitize(getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK))}
                     alt={video.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
@@ -487,7 +488,7 @@ const MyChannel = () => {
                     <div className="h-40 md:h-64 bg-gradient-to-r from-primary/30 via-purple-600/20 to-primary/10 relative">
                         {user.channel_banner_url ? (
                             <img
-                                src={getValidUrl(`/uploads/banners/${user.channel_banner_url}`)}
+                                src={DOMPurify.sanitize(getValidUrl(`/uploads/banners/${user.channel_banner_url}`))}
                                 alt={`${user.username}'s banner`}
                                 className="w-full h-full object-cover"
                             />
@@ -506,7 +507,7 @@ const MyChannel = () => {
                             >
                                 <div className="w-full h-full rounded-full overflow-hidden border-4 border-[#111] bg-black">
                                     <img
-                                        src={getAvatarUrl(user.profile_image, user.username)}
+                                        src={DOMPurify.sanitize(getAvatarUrl(user.profile_image, user.username))}
                                         alt={user.username}
                                         className="w-full h-full object-cover"
                                     />
