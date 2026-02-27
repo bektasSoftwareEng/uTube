@@ -238,7 +238,7 @@ def get_optional_user(
 # Routes
 # ============================================================================
 
-<<<<<<< HEAD
+
 from pydantic import BaseModel
 
 class EmailValidationRequest(BaseModel):
