@@ -10,12 +10,12 @@ Endpoints:
 """
 
 from jose import JWTError
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Union
 import shutil
 import os
 from pathlib import Path
@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 from backend.database import get_db
 from backend.database.models import User, Subscription, Video
 from backend.services.mail_service import send_verification_email
-from backend.core.config import AVATARS_DIR
+from backend.core.config import AVATARS_DIR, BANNERS_DIR
 from backend.core.security import (
     hash_password,
     verify_password,
@@ -110,6 +110,8 @@ class UserResponse(BaseModel):
     profile_image: Optional[str] = None
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
+    channel_description: Optional[str] = None
+    channel_banner_url: Optional[str] = None
     created_at: str
     subscriber_count: int = 0
     video_count: int = 0
@@ -236,7 +238,27 @@ def get_optional_user(
 # Routes
 # ============================================================================
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+<<<<<<< HEAD
+from pydantic import BaseModel
+
+class EmailValidationRequest(BaseModel):
+    email: str
+
+@router.post("/validate-email", status_code=status.HTTP_200_OK)
+def validate_email_endpoint(data: EmailValidationRequest):
+    """
+    Validate an email syntax and domain MX records.
+    Used by the frontend to provide real-time validation feedback.
+    """
+    is_valid, error_msg = validate_email(data.email)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    return {"status": "ok", "message": "Email is valid"}
+
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """
     Register a new user account.
@@ -246,15 +268,25 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     2. Check if email/username already exists
     3. Validate password strength
     4. Hash password
-    5. Generate 6-digit verification code and expiry
-    6. Create user in database (is_verified = False)
-    7. Send verification email
+    5. Create user in database
+    6. Generate JWT token
+    
+    Args:
+        user_data: User registration data
+        db: Database session
+        
+    Returns:
+        JWT access token and user info
+        
+    Raises:
+        HTTPException 400: If email/username exists or validation fails
     """
-    # Validate email format
-    if not validate_email(user_data.email):
+    # Validate email format and DNS
+    is_email_valid, email_error = validate_email(user_data.email)
+    if not is_email_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email format"
+            detail=email_error
         )
     
     # Check if email already exists
@@ -284,31 +316,25 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Hash password
     hashed_password = hash_password(user_data.password)
     
-    # Generate 6-digit OTP
-    verification_code = ''.join(random.choices(string.digits, k=6))
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
-    
-    # Create new user
+    # Create new user with secure auto-generated stream key
     new_user = User(
         username=user_data.username,
         email=user_data.email,
         password_hash=hashed_password,
-        stream_key=generate_stream_key(),
-        is_verified=False,
-        verification_code=verification_code,
-        verification_expires_at=expires_at
+        stream_key=generate_stream_key()
     )
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
-    # Send email
-    send_verification_email(new_user.email, verification_code)
+    # Generate access token
+    access_token = create_access_token({"sub": new_user.id})
     
-    return VerificationRequiredResponse(
-        message="Please check your email for the 6-digit verification code.",
-        email=new_user.email
+    return Token(
+        access_token=access_token,
+        user_id=new_user.id,
+        username=new_user.username
     )
 
 @router.post("/verify-email", response_model=Token)
@@ -411,6 +437,8 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         profile_image=user.profile_image,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
+        channel_description=user.channel_description,
+        channel_banner_url=user.channel_banner_url,
         created_at=user.created_at.isoformat(),
         subscriber_count=subscriber_count,
         video_count=video_count,
@@ -438,7 +466,7 @@ def get_current_user_info(
     return build_user_response(current_user, db)
 
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=Union[UserResponse, VerificationRequiredResponse])
 def update_user_profile(
     username: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
@@ -473,20 +501,42 @@ def update_user_profile(
             )
         current_user.username = username
         
-    # 2. Update Email
+    # 2. Update Email (Requires OTP Verification)
+    email_change_requested = False
     if email and email != current_user.email:
-        if not validate_email(email):
+        is_email_valid, email_error = validate_email(email)
+        if not is_email_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid email format"
+                detail=email_error
             )
-        existing_email = db.query(User).filter(User.email == email).first()
+        existing_email = db.query(User).filter(
+            (User.email == email) | (User.pending_email == email)
+        ).first()
+        
         if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered or pending verification"
             )
-        current_user.email = email
+            
+        # Generate new OTP for the email change
+        verification_code = ''.join(random.choices(string.digits, k=6))
+        current_user.pending_email = email
+        current_user.verification_code = verification_code
+        current_user.verification_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        
+        # Send the OTP to the NEW email address
+        # We don't await this if it's not an async function, but based on register route it's synchronous
+        try:
+            send_verification_email(email, verification_code)
+            email_change_requested = True
+        except Exception as e:
+            logger.error(f"Failed to send email verification for profile update: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send verification email. Please try again later."
+            )
         
     # 3. Update Password
     if password:
@@ -554,7 +604,161 @@ def update_user_profile(
             detail=f"Database update failed: {str(e)}"
         )
         
+    if email_change_requested:
+        return VerificationRequiredResponse(
+            status="verification_required",
+            email=current_user.pending_email,
+            message="Please verify your new email address to complete the update."
+        )
+        
     return build_user_response(current_user, db)
+
+
+@router.put("/me/channel", response_model=UserResponse)
+def update_channel_profile(
+    description: Optional[str] = Form(None),
+    banner_image: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the user's channel description and banner image.
+    """
+    # 1. Update Description
+    if description is not None:
+        current_user.channel_description = description.strip()
+
+    # 2. Update Banner Image
+    if banner_image:
+        # Validate file type (basic)
+        content_type = banner_image.content_type
+        if content_type not in ["image/jpeg", "image/png", "image/webp"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid image format. Allowed: JPEG, PNG, WEBP"
+            )
+
+        # Create unique filename
+        safe_filename = os.path.basename(banner_image.filename.replace('\0', ''))
+        file_ext = os.path.splitext(safe_filename)[1]
+        unique_filename = f"banner_{uuid.uuid4()}{file_ext}"
+        
+        # Security sanitization
+        unique_filename = os.path.basename(unique_filename.replace('\0', ''))
+        file_path = secure_resolve(BANNERS_DIR, unique_filename)
+
+        # Save file
+        try:
+            os.makedirs(file_path.parent, exist_ok=True)
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(banner_image.file, buffer)
+            
+            current_user.channel_banner_url = unique_filename
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload banner image: {str(e)}"
+            )
+
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {str(e)}"
+        )
+
+    return build_user_response(current_user, db)
+
+
+@router.post("/verify-email-change", response_model=UserResponse)
+def verify_email_change(
+    code: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Verify the OTP code for an email change request.
+    If valid, commits pending_email to email and returns the updated UserResponse.
+    """
+    if not current_user.pending_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No email change pending"
+        )
+        
+    if not current_user.verification_code or current_user.verification_code != code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code"
+        )
+        
+    if current_user.verification_expires_at is None or datetime.utcnow() > current_user.verification_expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code expired"
+        )
+        
+    # Apply the email change
+    current_user.email = current_user.pending_email
+    
+    # Clear the verification data
+    current_user.pending_email = None
+    current_user.verification_code = None
+    current_user.verification_expires_at = None
+    
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed. Please try again. Error: {str(e)}"
+        )
+        
+    return build_user_response(current_user, db)
+
+
+@router.get("/me/videos")
+def get_my_videos(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch all videos belonging to the authenticated user.
+    Returns ALL videos (including private, processing, scheduled) for channel management.
+    """
+    from backend.routes.video_routes import get_thumbnail_url, parse_tags, VideoListResponse, AuthorResponse
+
+    videos = db.query(Video).filter(
+        Video.user_id == current_user.id
+    ).order_by(Video.upload_date.desc()).all()
+
+    return [
+        VideoListResponse(
+            id=video.id,
+            title=video.title,
+            thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
+            view_count=video.view_count,
+            upload_date=video.upload_date.isoformat(),
+            duration=video.duration,
+            category=video.category,
+            tags=parse_tags(video.tags),
+            like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
+            author=AuthorResponse(
+                id=current_user.id,
+                username=current_user.username,
+                profile_image=current_user.profile_image,
+                video_count=current_user.videos.count()
+            )
+        )
+        for video in videos
+    ]
 
 
 # ============================================================================
