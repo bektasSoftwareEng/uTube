@@ -98,6 +98,18 @@ const Dashboard = () => {
         }
     };
 
+    const handleDeleteVideo = async (videoId) => {
+        if (window.confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
+            try {
+                await ApiClient.delete(`/videos/${videoId}`);
+                setVideos(videos.filter(v => v.id !== videoId));
+            } catch (err) {
+                console.error("Error deleting video:", err);
+                alert("Failed to delete video. Please try again.");
+            }
+        }
+    };
+
     const sortedVideos = [...videos].sort((a, b) => {
         let av = a[sortBy], bv = b[sortBy];
         if (sortBy === 'upload_date') { av = new Date(av); bv = new Date(bv); }
@@ -312,6 +324,15 @@ const Dashboard = () => {
                                                         </svg>
                                                     </button>
                                                 </Link>
+                                                <button
+                                                    onClick={() => handleDeleteVideo(video.id)}
+                                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/10 text-white/50 hover:text-red-500 transition-colors"
+                                                    title="Delete Video"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </td>
                                     </motion.tr>

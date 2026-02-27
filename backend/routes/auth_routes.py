@@ -20,6 +20,9 @@ import shutil
 import os
 from pathlib import Path
 import uuid
+import random
+import string
+from datetime import datetime, timedelta
 
 from backend.database import get_db
 from backend.database.models import User, Subscription, Video
@@ -116,6 +119,19 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class VerifyEmailRequest(BaseModel):
+    """Request model for verifying email OTP."""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+class VerificationRequiredResponse(BaseModel):
+    """Response returned after registration, before verification."""
+    message: str
+    email: str
+    status: str = "verification_required"
 
 
 # ============================================================================
@@ -222,6 +238,7 @@ def get_optional_user(
 # Routes
 # ============================================================================
 
+<<<<<<< HEAD
 from pydantic import BaseModel
 
 class EmailValidationRequest(BaseModel):
@@ -320,6 +337,37 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
         username=new_user.username
     )
 
+@router.post("/verify-email", response_model=Token)
+def verify_email(data: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """
+    Verify the 6-digit OTP and generate JWT token.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+    if user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already verified")
+        
+    if not user.verification_code or user.verification_code != data.code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification code")
+        
+    if user.verification_expires_at and datetime.utcnow() > user.verification_expires_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code has expired. Please register again.")
+        
+    # Verification successful
+    user.is_verified = True
+    user.verification_code = None
+    user.verification_expires_at = None
+    db.commit()
+    
+    # Generate access token immediately after verification
+    access_token = create_access_token({"sub": user.id})
+    return Token(
+        access_token=access_token,
+        user_id=user.id,
+        username=user.username
+    )
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
@@ -350,6 +398,12 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before logging in."
         )
     
     # Generate access token
