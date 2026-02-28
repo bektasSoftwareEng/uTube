@@ -92,6 +92,21 @@ async def startup_event():
     print("=" * 52 + "\n")
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Gracefully close database connections and clean up WAL files."""
+    from backend.database import engine
+    try:
+        # Checkpoint WAL: merges -wal into the main .db file and removes -shm/-wal
+        with engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        engine.dispose()
+        print("[SHUTDOWN] Database connections closed and WAL files cleaned up.", flush=True)
+    except Exception as e:
+        print(f"[SHUTDOWN WARNING] WAL cleanup error: {e}", flush=True)
+        engine.dispose()
+
+
 
 # Root endpoint
 @app.get("/")

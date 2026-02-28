@@ -258,7 +258,7 @@ def validate_email_endpoint(data: EmailValidationRequest):
         )
     return {"status": "ok", "message": "Email is valid"}
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=VerificationRequiredResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """
     Register a new user account.
@@ -269,14 +269,15 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     3. Validate password strength
     4. Hash password
     5. Create user in database
-    6. Generate JWT token
+    6. Generate OTP and send verification email
+    7. Return verification_required response
     
     Args:
         user_data: User registration data
         db: Database session
         
     Returns:
-        JWT access token and user info
+        Verification required response with email
         
     Raises:
         HTTPException 400: If email/username exists or validation fails
@@ -316,25 +317,64 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Hash password
     hashed_password = hash_password(user_data.password)
     
+    # Generate OTP for email verification
+    verification_code = ''.join(random.choices(string.digits, k=6))
+    
     # Create new user with secure auto-generated stream key
     new_user = User(
         username=user_data.username,
         email=user_data.email,
         password_hash=hashed_password,
-        stream_key=generate_stream_key()
+        stream_key=generate_stream_key(),
+        verification_code=verification_code,
+        verification_expires_at=datetime.utcnow() + timedelta(minutes=15)
     )
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
-    # Generate access token
-    access_token = create_access_token({"sub": new_user.id})
+    # Always log the OTP to the terminal for development
+    print(f"\n[REGISTER] OTP code for {new_user.email}: {verification_code}", flush=True)
     
-    return Token(
-        access_token=access_token,
-        user_id=new_user.id,
-        username=new_user.username
+    # Send verification email (mock or SMTP)
+    email_sent = send_verification_email(new_user.email, verification_code)
+    if not email_sent:
+        print(f"[REGISTER WARNING] Email dispatch failed, but code is saved. Use code from terminal.", flush=True)
+    
+    return VerificationRequiredResponse(
+        message="Verification code sent to your email. Please check your inbox.",
+        email=new_user.email
+    )
+
+@router.post("/resend-otp", response_model=VerificationRequiredResponse)
+def resend_otp(data: EmailValidationRequest, db: Session = Depends(get_db)):
+    """
+    Resend the OTP verification code for an unverified user.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    if user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already verified")
+    
+    # Generate new OTP
+    verification_code = ''.join(random.choices(string.digits, k=6))
+    user.verification_code = verification_code
+    user.verification_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    db.commit()
+    
+    # Always log the OTP to the terminal for development
+    print(f"\n[RESEND-OTP] New OTP code for {user.email}: {verification_code}", flush=True)
+    
+    email_sent = send_verification_email(user.email, verification_code)
+    if not email_sent:
+        print(f"[RESEND-OTP WARNING] Email dispatch failed, but code is saved. Use code from terminal.", flush=True)
+    
+    return VerificationRequiredResponse(
+        message="A new verification code has been sent.",
+        email=user.email
     )
 
 @router.post("/verify-email", response_model=Token)
