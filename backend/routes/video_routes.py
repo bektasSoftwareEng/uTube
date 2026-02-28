@@ -120,20 +120,20 @@ class VideoResponse(BaseModel):
 def get_video_url(filename: str, is_temp: bool = False) -> str:
     """Generate full URL for video file."""
     if is_temp:
-        return f"/storage/uploads/temp/{filename}"
-    return f"/storage/uploads/videos/{filename}"
+        return f"/uploads/temp/{filename}"
+    return f"/uploads/videos/{filename}"
 
 
 def get_thumbnail_url(filename: str) -> str:
     """Generate full URL for thumbnail file."""
     if not filename or filename == "default_thumbnail.png":
-        return "/storage/uploads/thumbnails/default_thumbnail.png"
-    return f"/storage/uploads/thumbnails/{filename}"
+        return "/uploads/thumbnails/default_thumbnail.png"
+    return f"/uploads/thumbnails/{filename}"
 
 
 def get_preview_url(filename: str) -> str:
     """Generate full URL for preview frame."""
-    return f"/storage/uploads/previews/{filename}"
+    return f"/uploads/previews/{filename}"
 
 def parse_tags(tags_val: Union[str, List, None]) -> List[str]:
     """Safely parse tags from DB (which might be JSON string) to List."""

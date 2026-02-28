@@ -31,6 +31,13 @@ const Register = () => {
     const [touched, setTouched] = useState({});
     const navigate = useNavigate();
 
+    // OTP Verification State
+    const [verificationStep, setVerificationStep] = useState(false);
+    const [verificationEmail, setVerificationEmail] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [verifyLoading, setVerifyLoading] = useState(false);
+    const [resending, setResending] = useState(false);
+
     const sanitize = (str) => str.replace(/[<>]/g, '');
 
     const handleChange = useCallback((e) => {
@@ -110,25 +117,13 @@ const Register = () => {
                 password: formData.password
             });
 
-            // Auto-login: the backend returns a Token directly
-            const { access_token, user_id, username } = res.data;
-            if (access_token) {
-                localStorage.setItem(UTUBE_TOKEN, access_token);
-
-                // Fetch full profile from /me
-                try {
-                    const meRes = await ApiClient.get('/auth/me');
-                    localStorage.setItem(UTUBE_USER, JSON.stringify(meRes.data));
-                } catch {
-                    // Fallback
-                    localStorage.setItem(UTUBE_USER, JSON.stringify({
-                        id: user_id, username: username || formData.username, email: formData.email, profile_image: null
-                    }));
-                }
-
-                window.dispatchEvent(new Event('authChange'));
-                navigate('/');
+            // Backend now returns verification_required instead of a token
+            if (res.data.status === 'verification_required') {
+                setVerificationEmail(res.data.email);
+                setVerificationStep(true);
+                setError('');
             } else {
+                // Fallback: if backend somehow returns a token (shouldn't happen)
                 navigate('/login');
             }
         } catch (err) {
@@ -147,6 +142,68 @@ const Register = () => {
             setError(errorMessage);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        if (otpCode.length !== 6) {
+            setError('Please enter the 6-digit code.');
+            return;
+        }
+
+        setVerifyLoading(true);
+        setError('');
+
+        try {
+            const res = await ApiClient.post('/auth/verify-email', {
+                email: verificationEmail,
+                code: otpCode
+            });
+
+            const { access_token, user_id, username } = res.data;
+            if (access_token) {
+                localStorage.setItem(UTUBE_TOKEN, access_token);
+
+                // Fetch full profile from /me
+                try {
+                    const meRes = await ApiClient.get('/auth/me');
+                    localStorage.setItem(UTUBE_USER, JSON.stringify(meRes.data));
+                } catch {
+                    localStorage.setItem(UTUBE_USER, JSON.stringify({
+                        id: user_id, username: username || formData.username, email: verificationEmail, profile_image: null
+                    }));
+                }
+
+                window.dispatchEvent(new Event('authChange'));
+                navigate('/');
+            }
+        } catch (err) {
+            console.error("Verification Error:", err);
+            let errorMessage = 'Verification failed. Please check your code.';
+            if (err.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
+            }
+            setError(errorMessage);
+        } finally {
+            setVerifyLoading(false);
+        }
+    };
+
+    const handleResendCode = async () => {
+        setResending(true);
+        setError('');
+        try {
+            await ApiClient.post('/auth/resend-otp', {
+                email: verificationEmail
+            });
+            setOtpCode('');
+            setError('A new verification code has been sent!');
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Could not resend code. Please try registering again.');
+        } finally {
+            setResending(false);
         }
     };
 
@@ -186,10 +243,12 @@ const Register = () => {
                         <span className="font-black text-2xl text-white italic tracking-tighter">u</span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-1">
-                        Join the Elite
+                        {verificationStep ? 'Verify Your Email' : 'Join the Elite'}
                     </h2>
                     <p className="text-gray-400 text-sm">
-                        Create your creator account today
+                        {verificationStep
+                            ? `Enter the 6-digit code sent to ${verificationEmail}`
+                            : 'Create your creator account today'}
                     </p>
                 </div>
 
@@ -201,138 +260,188 @@ const Register = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="p-3 rounded-2xl bg-red-900/20 border border-[#e50914]/50 text-red-200 text-sm font-medium flex items-center gap-3 backdrop-blur-sm"
+                                className={`p-3 rounded-2xl border text-sm font-medium flex items-center gap-3 backdrop-blur-sm ${error.includes('sent!')
+                                    ? 'bg-green-900/20 border-green-500/50 text-green-200'
+                                    : 'bg-red-900/20 border-[#e50914]/50 text-red-200'
+                                    }`}
                             >
-                                <span className="text-lg">⚠️</span>
+                                <span className="text-lg">{error.includes('sent!') ? '✅' : '⚠️'}</span>
                                 {error}
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    {/* Username */}
-                    <div className="group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
-                            Username
-                        </label>
-                        <input
-                            type="text"
-                            name="username"
-                            required
-                            value={formData.username}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
-                            placeholder="Create a unique username"
-                        />
-                        <FieldHint
-                            show={touched.username && formData.username.length > 0}
-                            valid={usernameValid}
-                            text={usernameValid ? 'Looks good' : 'Must be 3–50 characters'}
-                        />
-                    </div>
+                {/* ── OTP Verification Step ── */}
+                {verificationStep ? (
+                    <form onSubmit={handleVerifyOtp} className="space-y-5">
+                        <div className="group">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
+                                Verification Code
+                            </label>
+                            <input
+                                type="text"
+                                maxLength={6}
+                                value={otpCode}
+                                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="w-full bg-white/5 border border-gray-800 text-white px-5 py-4 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl text-center text-2xl tracking-[0.5em] font-mono"
+                                placeholder="000000"
+                                autoFocus
+                            />
+                        </div>
 
-                    {/* Email with Live Backend Verification */}
-                    <div className="group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
-                            Email Address
-                        </label>
-                        <input
-                            type="email"
-                            name="email"
-                            required
-                            value={formData.email}
-                            onChange={(e) => {
-                                handleChange(e);
-                                setIsEmailVerified(null); // Reset on re-type
-                            }}
-                            onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid, isEmailVerified)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
-                            placeholder="name@example.com"
-                        />
-                        {/* Live Backend Email Verification Field Hint */}
-                        <div className="min-h-[20px] mt-1 ml-1">
-                            {touched.email && formData.email.length > 0 && (
-                                <p className={`text-xs font-medium transition-opacity duration-200 
+                        <button
+                            type="submit"
+                            disabled={verifyLoading || otpCode.length !== 6}
+                            className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl transition-all duration-300 hover:scale-[1.02] text-lg"
+                        >
+                            {verifyLoading ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Verifying...
+                                </span>
+                            ) : 'Verify & Sign In'}
+                        </button>
+
+                        <div className="text-center pt-2">
+                            <button
+                                type="button"
+                                onClick={handleResendCode}
+                                disabled={resending}
+                                className="text-gray-400 text-sm hover:text-[#e50914] transition-colors disabled:opacity-50"
+                            >
+                                {resending ? 'Sending...' : "Didn't receive the code? Resend"}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    /* ── Registration Form ── */
+                    <>
+                        <form onSubmit={handleSubmit} className="space-y-3">
+                            {/* Username */}
+                            <div className="group">
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
+                                    Username
+                                </label>
+                                <input
+                                    type="text"
+                                    name="username"
+                                    required
+                                    value={formData.username}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                                    placeholder="Create a unique username"
+                                />
+                                <FieldHint
+                                    show={touched.username && formData.username.length > 0}
+                                    valid={usernameValid}
+                                    text={usernameValid ? 'Looks good' : 'Must be 3–50 characters'}
+                                />
+                            </div>
+
+                            {/* Email with Live Backend Verification */}
+                            <div className="group">
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
+                                    Email Address
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={(e) => {
+                                        handleChange(e);
+                                        setIsEmailVerified(null); // Reset on re-type
+                                    }}
+                                    onBlur={handleBlur}
+                                    className={`w-full bg-white/5 border ${inputBorderClass('email', emailValid, isEmailVerified)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                                    placeholder="name@example.com"
+                                />
+                                {/* Live Backend Email Verification Field Hint */}
+                                <div className="min-h-[20px] mt-1 ml-1">
+                                    {touched.email && formData.email.length > 0 && (
+                                        <p className={`text-xs font-medium transition-opacity duration-200 
                                   ${emailChecking ? 'text-gray-400'
-                                        : isEmailVerified ? 'text-green-400'
-                                            : 'text-red-400'}`}>
-                                    {emailChecking
-                                        ? '⏳ Checking email...'
-                                        : isEmailVerified
-                                            ? '✓ Email is verified'
-                                            : '✗ Invalid email or domain'}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Password */}
-                    <div className="group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
-                            Password
-                        </label>
-                        <input
-                            type="password"
-                            name="password"
-                            required
-                            value={formData.password}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('password', passwordValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
-                            placeholder="••••••••"
-                        />
-                        {/* Password strength checklist — always rendered at fixed height, opacity-only transition */}
-                        <div className={`mt-1.5 ml-1 space-y-0.5 transition-opacity duration-200 ${showPasswordChecklist ? 'opacity-100' : 'opacity-0'}`}>
-                            {passwordChecks.map((rule) => (
-                                <div key={rule.label} className={`flex items-center gap-2 text-xs font-medium transition-colors ${rule.passed ? 'text-green-400' : 'text-white/30'}`}>
-                                    <span className="text-[10px]">{rule.passed ? '●' : '○'}</span>
-                                    {rule.label}
+                                                : isEmailVerified ? 'text-green-400'
+                                                    : 'text-red-400'}`}>
+                                            {emailChecking
+                                                ? '⏳ Checking email...'
+                                                : isEmailVerified
+                                                    ? '✓ Email is verified'
+                                                    : '✗ Invalid email or domain'}
+                                        </p>
+                                    )}
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Password */}
+                            <div className="group">
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    required
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    className={`w-full bg-white/5 border ${inputBorderClass('password', passwordValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                                    placeholder="••••••••"
+                                />
+                                {/* Password strength checklist — always rendered at fixed height, opacity-only transition */}
+                                <div className={`mt-1.5 ml-1 space-y-0.5 transition-opacity duration-200 ${showPasswordChecklist ? 'opacity-100' : 'opacity-0'}`}>
+                                    {passwordChecks.map((rule) => (
+                                        <div key={rule.label} className={`flex items-center gap-2 text-xs font-medium transition-colors ${rule.passed ? 'text-green-400' : 'text-white/30'}`}>
+                                            <span className="text-[10px]">{rule.passed ? '●' : '○'}</span>
+                                            {rule.label}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Confirm Password */}
+                            <div className="group">
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
+                                    Confirm Password
+                                </label>
+                                <input
+                                    type="password"
+                                    name="confirmPassword"
+                                    required
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    className={`w-full bg-white/5 border ${inputBorderClass('confirmPassword', confirmValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
+                                    placeholder="••••••••"
+                                />
+                                <FieldHint
+                                    show={touched.confirmPassword && formData.confirmPassword.length > 0}
+                                    valid={confirmValid}
+                                    text={confirmValid ? 'Passwords match' : 'Passwords do not match'}
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={loading || !formValid}
+                                className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl transition-all duration-300 hover:scale-[1.02] mt-4 text-lg"
+                            >
+                                {loading ? 'Creating Account...' : 'Create Account'}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center border-t border-white/5 pt-4">
+                            <p className="text-gray-400 text-sm">
+                                Already have an account?{' '}
+                                <Link to="/login" className="text-[#e50914] font-bold hover:text-red-400 transition-colors">
+                                    Sign In
+                                </Link>
+                            </p>
                         </div>
-                    </div>
-
-                    {/* Confirm Password */}
-                    <div className="group">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 group-focus-within:text-[#e50914] transition-colors">
-                            Confirm Password
-                        </label>
-                        <input
-                            type="password"
-                            name="confirmPassword"
-                            required
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            className={`w-full bg-white/5 border ${inputBorderClass('confirmPassword', confirmValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
-                            placeholder="••••••••"
-                        />
-                        <FieldHint
-                            show={touched.confirmPassword && formData.confirmPassword.length > 0}
-                            valid={confirmValid}
-                            text={confirmValid ? 'Passwords match' : 'Passwords do not match'}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading || !formValid}
-                        className="w-full bg-[#e50914] hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl transition-all duration-300 hover:scale-[1.02] mt-4 text-lg"
-                    >
-                        {loading ? 'Creating Account...' : 'Create Account'}
-                    </button>
-                </form>
-
-                <div className="mt-6 text-center border-t border-white/5 pt-4">
-                    <p className="text-gray-400 text-sm">
-                        Already have an account?{' '}
-                        <Link to="/login" className="text-[#e50914] font-bold hover:text-red-400 transition-colors">
-                            Sign In
-                        </Link>
-                    </p>
-                </div>
+                    </>
+                )}
             </motion.div>
         </div>
     );

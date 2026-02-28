@@ -55,7 +55,9 @@ const Login = () => {
             let errorMessage = 'Login failed. Please check your credentials.';
 
             if (err.response?.status === 401) {
-                errorMessage = 'Hatalı giriş veya hesap mevcut değil. Lütfen tekrar kayıt olun.';
+                errorMessage = 'Invalid email or password. Please try again.';
+            } else if (err.response?.status === 403) {
+                errorMessage = err.response.data?.detail || 'Please verify your email address before logging in.';
             } else if (err.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 if (Array.isArray(detail)) {
