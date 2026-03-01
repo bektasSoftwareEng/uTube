@@ -110,11 +110,21 @@ const BackgroundGalleryModal = ({
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // 1. Strict MIME type validation
+        const allowedTypes = ['video/mp4', 'video/webm'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error("Invalid file type. Only MP4 and WebM videos are allowed.");
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        // 2. Metadata check using isolated video object
         const video = document.createElement('video');
         video.preload = 'metadata';
+        const objectUrl = URL.createObjectURL(file);
 
         video.onloadedmetadata = function () {
-            window.URL.revokeObjectURL(this.src);
+            window.URL.revokeObjectURL(objectUrl);
             if (video.duration > 30) {
                 toast.error("Video too long! Maximum duration is 30 seconds.");
                 if (fileInputRef.current) fileInputRef.current.value = '';
@@ -122,15 +132,16 @@ const BackgroundGalleryModal = ({
             }
             setSelectedBgFile(file);
             setPreviewBgUrl(URL.createObjectURL(file));
+            setBgNameInput(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill name without extension
         };
 
         video.onerror = function () {
-            window.URL.revokeObjectURL(this.src);
+            window.URL.revokeObjectURL(objectUrl);
             toast.error("Invalid or corrupted video file.");
             if (fileInputRef.current) fileInputRef.current.value = '';
         };
 
-        video.src = URL.createObjectURL(file);
+        video.src = objectUrl;
     };
 
     const handleCancelUpload = () => {
