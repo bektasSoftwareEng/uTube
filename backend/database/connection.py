@@ -152,11 +152,18 @@ def run_schema_migrations():
             existing_columns = {row[1] for row in cursor.fetchall()}
             
             user_columns = [
+                ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
+                ("verification_code", "VARCHAR(6)"),
+                ("verification_expires_at", "DATETIME"),
+                ("pending_email", "VARCHAR(100)"),
+                ("channel_description", "TEXT"),
+                ("channel_banner_url", "VARCHAR(255)"),
                 ("stream_key", "VARCHAR(100)"),
                 ("stream_title", "VARCHAR(100)"),
                 ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'"),
                 ("stream_thumbnail", "VARCHAR(255)"),
                 ("studio_bg_url", "VARCHAR(500)"),
+                ("is_live", "BOOLEAN DEFAULT False NOT NULL"),
             ]
             
             for col_name, col_def in user_columns:

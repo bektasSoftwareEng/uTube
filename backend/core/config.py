@@ -42,11 +42,12 @@ THUMBNAILS_DIR = STORAGE_DIR / "thumbnails"
 AVATARS_DIR = STORAGE_DIR / "avatars"
 PREVIEWS_DIR = STORAGE_DIR / "previews"  # Phase 6: AI thumbnail generation frames
 BACKGROUNDS_DIR = STORAGE_DIR / "backgrounds"
+BANNERS_DIR = STORAGE_DIR / "banners"
 TEMP_DIR = STORAGE_DIR / "temp"
 TEMP_UPLOADS_DIR = STORAGE_DIR / "temp"
 
 # Ensure storage directories exist
-for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, PREVIEWS_DIR, BACKGROUNDS_DIR, TEMP_DIR, TEMP_UPLOADS_DIR]:
+for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, PREVIEWS_DIR, BACKGROUNDS_DIR, BANNERS_DIR, TEMP_DIR, TEMP_UPLOADS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 

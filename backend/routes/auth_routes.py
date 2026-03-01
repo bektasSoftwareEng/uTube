@@ -27,7 +27,8 @@ import uuid
 from backend.database import get_db
 from backend.database.models import User, Subscription, Video, StreamLike, ActivityLog
 from backend.chat.manager import manager
-from backend.core.config import THUMBNAILS_DIR, AVATARS_DIR
+from backend.services.mail_service import mail_service
+from backend.core.config import THUMBNAILS_DIR, AVATARS_DIR, BANNERS_DIR
 from backend.core.security import (
     hash_password,
     verify_password,
@@ -84,6 +85,8 @@ class UserUpdate(BaseModel):
     """Request model for user profile update."""
     username: Optional[str] = Field(None, min_length=3, max_length=50)
     email: Optional[EmailStr] = Field(None)
+    channel_description: Optional[str] = Field(None)
+    channel_banner_url: Optional[str] = Field(None)
     password: Optional[str] = Field(None, min_length=8)
     new_password: Optional[str] = Field(None, min_length=8)
 
@@ -109,6 +112,9 @@ class UserResponse(BaseModel):
     username: str
     email: str
     profile_image: Optional[str] = None
+    channel_description: Optional[str] = None
+    channel_banner_url: Optional[str] = None
+    is_verified: bool = False
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
     created_at: str
@@ -125,6 +131,9 @@ class PublicProfileResponse(BaseModel):
     id: int
     username: str
     profile_image: Optional[str] = None
+    channel_description: Optional[str] = None
+    channel_banner_url: Optional[str] = None
+    is_verified: bool = False
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
     stream_thumbnail: Optional[str] = None
@@ -482,6 +491,9 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         username=user.username,
         email=user.email,
         profile_image=user.profile_image,
+        channel_description=user.channel_description,
+        channel_banner_url=user.channel_banner_url,
+        is_verified=user.is_verified,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
         created_at=user.created_at.isoformat(),
@@ -852,11 +864,14 @@ def get_public_profile(
         id=user.id,
         username=user.username,
         profile_image=user.profile_image,
+        channel_description=user.channel_description,
+        channel_banner_url=user.channel_banner_url,
+        is_verified=user.is_verified,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
         subscriber_count=subscriber_count,
         video_count=video_count,
-        is_live=False  # TODO: Check actual RTMP server status via API
+        is_live=user.is_live
     )
 
 
