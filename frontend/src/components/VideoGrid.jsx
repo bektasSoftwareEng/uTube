@@ -1,7 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import HoverVideoPreview from './HoverVideoPreview';
+import { FastAverageColor } from 'fast-average-color';
+import { getMediaUrl, getAvatarUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+
+// Instantiate once globally for performance
+const fac = new FastAverageColor();
 
 // ── Time-ago helper ───────────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
@@ -9,20 +14,20 @@ const timeAgo = (dateStr) => {
     const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
-    if (m < 60) return `${m}m ago`;
+    if (m < 60) return `${m} minutes ago`;
     const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
+    if (h < 24) return `${h} hours ago`;
     const d = Math.floor(h / 24);
-    if (d < 7) return `${d}d ago`;
-    if (d < 30) return `${Math.floor(d / 7)}w ago`;
-    if (d < 365) return `${Math.floor(d / 30)}mo ago`;
-    return `${Math.floor(d / 365)}y ago`;
+    if (d < 7) return `${d} days ago`;
+    if (d < 30) return `${Math.floor(d / 7)} weeks ago`;
+    if (d < 365) return `${Math.floor(d / 30)} months ago`;
+    return `${Math.floor(d / 365)} years ago`;
 };
 
 const fmtViews = (n) => {
     if (!n && n !== 0) return '0';
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1)).toString()}M`;
+    if (n >= 1_000) return `${Number((n / 1_000).toFixed(1)).toString()}K`;
     return n.toString();
 };
 
@@ -63,7 +68,47 @@ export const unblockChannel = (authorId) => {
     window.dispatchEvent(new Event('utube_channel_blocked'));
 };
 
-const VideoMenu = ({ video, onHide }) => {
+const getBlockedVideoKey = () => {
+    try {
+        const user = JSON.parse(localStorage.getItem('utube_user_data') || 'null');
+        return user?.id ? `utube_blocked_videos_${user.id}` : 'utube_blocked_videos_guest';
+    } catch { return 'utube_blocked_videos_guest'; }
+};
+
+export const getBlockedVideosData = () => {
+    try {
+        return JSON.parse(localStorage.getItem(getBlockedVideoKey()) || '[]');
+    } catch { return []; }
+};
+
+export const blockVideo = (video) => {
+    const existing = getBlockedVideosData();
+    if (!existing.some(v => v.id === video.id)) {
+        localStorage.setItem(getBlockedVideoKey(), JSON.stringify([...existing, video]));
+
+        // Also add to session storage so we know it was blocked THIS session (and should be blurred)
+        const sessionBlocked = JSON.parse(sessionStorage.getItem('utube_session_blocked_videos') || '[]');
+        if (!sessionBlocked.includes(video.id)) {
+            sessionStorage.setItem('utube_session_blocked_videos', JSON.stringify([...sessionBlocked, video.id]));
+        }
+
+        window.dispatchEvent(new Event('utube_video_blocked'));
+    }
+};
+
+export const unblockVideo = (videoId) => {
+    const existing = getBlockedVideosData();
+    const filtered = existing.filter(v => v.id !== videoId);
+    localStorage.setItem(getBlockedVideoKey(), JSON.stringify(filtered));
+
+    // Remove from session
+    const sessionBlocked = JSON.parse(sessionStorage.getItem('utube_session_blocked_videos') || '[]');
+    sessionStorage.setItem('utube_session_blocked_videos', JSON.stringify(sessionBlocked.filter(id => id !== videoId)));
+
+    window.dispatchEvent(new Event('utube_video_blocked'));
+};
+
+export const VideoMenu = ({ video, onHide }) => {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const ref = useRef(null);
@@ -79,7 +124,7 @@ const VideoMenu = ({ video, onHide }) => {
     const handleDownload = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const url = getValidUrl(video.video_url || video.file_url, null);
+        const url = getMediaUrl(video.video_url || video.file_url) || null;
         if (!url) { alert('No download link available for this video.'); return; }
         const a = document.createElement('a');
         a.href = url;
@@ -102,7 +147,7 @@ const VideoMenu = ({ video, onHide }) => {
     const handleNotInterested = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        onHide('video', video.id);
+        blockVideo(video); // This handles both storage and session tracking
         setOpen(false);
     };
 
@@ -202,25 +247,125 @@ const VideoMenu = ({ video, onHide }) => {
     );
 };
 
-// ── VideoCard ─────────────────────────────────────────────────────────────────
-export const VideoCard = ({ video, onHide }) => {
+export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
+    const [isHovered, setIsHovered] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [dominantColor, setDominantColor] = useState('transparent');
+    const hoverTimeout = useRef(null);
+
+    const handleMouseEnter = () => {
+        setIsHovered(true);
+        hoverTimeout.current = setTimeout(() => {
+            setShowPreview(true);
+        }, 1000);
+    };
+
+    const handleMouseLeave = () => {
+        setIsHovered(false);
+        setShowPreview(false);
+        if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+        };
+    }, []);
+
     const duration = video.duration
         ? `${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}`
         : null;
 
-    return (
-        <motion.div className="video-card-hover group cursor-pointer relative" layout>
-            {/* Thumbnail — full clickable */}
-            <Link to={`/video/${video.id}`}>
-                <div className="relative aspect-video rounded-xl overflow-hidden mb-3">
+    if (isSessionBlocked) {
+        return (
+            <motion.div className="relative group rounded-xl overflow-hidden aspect-video bg-white/5 border border-white/10" layout>
+                {/* Heavily Blurred Background Thumbnail */}
+                <div className="absolute inset-0 z-0">
                     <img
-                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
+                        alt="Blocked video"
+                        className="w-full h-full object-cover blur-xl opacity-30 scale-110"
+                    />
+                </div>
+
+                {/* Overlay Content */}
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4 bg-black/60">
+                    <svg className="w-8 h-8 text-white/30 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                    <p className="text-white/60 text-xs font-bold text-center mb-3">You won't see this video again.</p>
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            unblockVideo(video.id);
+                        }}
+                        className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-xs font-bold transition-colors"
+                    >
+                        Undo
+                    </button>
+                </div>
+            </motion.div>
+        );
+    }
+
+    return (
+        <motion.div
+            className="group/card cursor-pointer relative flex flex-col"
+            layout
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+        >
+            {/* Dynamically colored full-card background that expands on hover */}
+            {isHovered && dominantColor !== 'transparent' && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.15 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute -top-3 -bottom-3 -left-3 -right-3 rounded-2xl z-[-1] pointer-events-none"
+                    style={{ backgroundColor: dominantColor }}
+                />
+            )}
+
+            {/* Thumbnail — full clickable */}
+            <Link to={`/video/${video.id}`} className="block relative z-0 group-hover/card:z-10">
+
+                <div
+                    className="relative aspect-video rounded-xl overflow-hidden mb-3 transition-all duration-300 group-hover/card:scale-105 group-hover/card:shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+                    style={isHovered && dominantColor !== 'transparent' ? { boxShadow: `0 10px 40px ${dominantColor}66` } : {}}
+                >
+                    <img
+                        crossOrigin="anonymous"
+                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                         alt={video.title}
                         className="w-full h-full object-cover"
+                        onLoad={(e) => {
+                            fac.getColorAsync(e.target, { algorithm: 'dominant' })
+                                .then(color => setDominantColor(color.hex))
+                                .catch(e => console.log('FAC Error:', e));
+                        }}
                         onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
                     />
-                    {duration && (
-                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+
+                    {/* Hover Preview Overlay */}
+                    {showPreview && (
+                        <div className="absolute inset-0 z-20 pointer-events-none bg-black">
+                            <AnimatePresence>
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="w-full h-full"
+                                >
+                                    <HoverVideoPreview video={video} isGridMode={true} />
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
+                    )}
+
+                    {!showPreview && duration && (
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
                             {duration}
                         </div>
                     )}
@@ -228,10 +373,10 @@ export const VideoCard = ({ video, onHide }) => {
             </Link>
 
             {/* Info row */}
-            <div className="flex gap-2.5">
+            <div className="flex gap-3 mt-3 pr-2">
                 {/* Avatar */}
-                <Link to={`/video/${video.id}`} className="shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-surface overflow-hidden border border-white/10">
+                <Link to={`/video/${video.id}`} className="shrink-0 mt-0.5">
+                    <div className="w-[36px] h-[36px] rounded-full bg-surface overflow-hidden border border-white/5">
                         <img
                             src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                             alt={video.author?.username}
@@ -244,24 +389,28 @@ export const VideoCard = ({ video, onHide }) => {
                 </Link>
 
                 {/* Text + three-dot row */}
-                <div className="flex-1 min-w-0 flex gap-1">
-                    <Link to={`/video/${video.id}`} className="flex-1 min-w-0">
-                        <h3 className="font-bold text-xs sm:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                <div className="flex-1 min-w-0 flex items-start justify-between">
+                    <Link to={`/video/${video.id}`} className="flex-1 min-w-0 pr-2">
+                        <h3 className="font-semibold text-[15px] sm:text-base text-[#f1f1f1] line-clamp-2 leading-snug transition-colors">
                             {video.title}
                         </h3>
-                        <p className="text-white/40 text-[11px] mt-0.5 hover:text-white/60 transition-colors truncate">
-                            {video.author?.username}
-                        </p>
-                        <div className="flex items-center gap-1 text-white/30 text-[10px] mt-0.5">
-                            <span>{fmtViews(video.view_count)} views</span>
-                            <span>·</span>
-                            <span>{timeAgo(video.upload_date)}</span>
+                        <div className="text-[#AAAAAA] text-[13px] mt-1 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 hover:text-white transition-colors w-max">
+                                <span>{video.author?.username}</span>
+                                {/* Verified badge */}
+                                <svg className="w-3.5 h-3.5 text-[#AAAAAA]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z" /></svg>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span>{fmtViews(video.view_count)} views</span>
+                                <span className="text-[10px] mx-0.5">•</span>
+                                <span>{timeAgo(video.upload_date)}</span>
+                            </div>
                         </div>
                     </Link>
 
                     {/* ⋮ Menu */}
                     {onHide && (
-                        <div className="shrink-0 self-start pt-0.5">
+                        <div className="shrink-0 -mt-1 -mr-2">
                             <VideoMenu video={video} onHide={onHide} />
                         </div>
                     )}
@@ -273,21 +422,64 @@ export const VideoCard = ({ video, onHide }) => {
 
 // ── VideoGrid ─────────────────────────────────────────────────────────────────
 const VideoGrid = ({ videos: initialVideos, loading }) => {
-    const [hidden, setHidden] = useState(new Set());   // hidden video IDs
-    const [blocked, setBlocked] = useState(() => new Set(getBlockedChannels()));
+    // hidden will only be used directly via UI iteration now (mostly let storage handle it)
+    const [blockedChannelsSet, setBlockedChannelsSet] = useState(() => new Set(getBlockedChannels()));
 
-    // Derive visible list
-    const visible = (initialVideos || []).filter(v =>
-        !hidden.has(v.id) && !blocked.has(v.author?.id)
-    );
+    // We maintain a list of all historically blocked videos
+    const [blockedVideos, setBlockedVideos] = useState(() => getBlockedVideosData());
+
+    // We maintain a list of videos blocked only in THIS session (F5 clears this logically, but sessionStorage persists F5, so F5 keeps blur)
+    // Wait, by user request: "If the user presses F5, it shouldn't reappear... remain blurred until they close the homepage. If they log out and back in, it shouldn't appear again at all."
+    // `sessionStorage` survives F5 but dies on tab close. This perfectly matches the user description.
+    const [sessionBlockedIds, setSessionBlockedIds] = useState(() => {
+        try {
+            return new Set(JSON.parse(sessionStorage.getItem('utube_session_blocked_videos') || '[]'));
+        } catch { return new Set(); }
+    });
+
+    // Listen to local storage events to keep state synced across components/tabs
+    useEffect(() => {
+        const handleBlockEvent = () => {
+            setBlockedChannelsSet(new Set(getBlockedChannels()));
+            setBlockedVideos(getBlockedVideosData());
+
+            try {
+                setSessionBlockedIds(new Set(JSON.parse(sessionStorage.getItem('utube_session_blocked_videos') || '[]')));
+            } catch { setSessionBlockedIds(new Set()); }
+        };
+
+        window.addEventListener('utube_channel_blocked', handleBlockEvent);
+        window.addEventListener('utube_video_blocked', handleBlockEvent);
+
+        return () => {
+            window.removeEventListener('utube_channel_blocked', handleBlockEvent);
+            window.removeEventListener('utube_video_blocked', handleBlockEvent);
+        };
+    }, []);
+
+    // Derive visible list:
+    // A video is visible if it's NOT blocked, OR if it IS blocked but it was blocked THIS SESSION (meaning we want to show it heavily blurred).
+    // If it's blocked from a previous session (not in session blocked IDs), completely hide it.
+    const visible = (initialVideos || []).filter(v => {
+        if (blockedChannelsSet.has(v.author?.id)) return false;
+
+        const isBlockedTotal = blockedVideos.some(bv => bv.id === v.id);
+        const isBlockedThisSession = sessionBlockedIds.has(v.id);
+
+        if (isBlockedTotal && !isBlockedThisSession) {
+            // Blocked from previous session - completely hide
+            return false;
+        }
+
+        // Otherwise show it (either entirely visible or blurred)
+        return true;
+    });
 
     const handleHide = useCallback((type, id) => {
-        if (type === 'video') {
-            setHidden(prev => new Set([...prev, id]));
-        } else if (type === 'channel') {
-            blockChannel(id);
-            setBlocked(prev => new Set([...prev, id]));
+        if (type === 'channel') {
+            // Already handled in the VideoMenu via blockChannel
         }
+        // blockVideo is also handled in VideoMenu, which dispatches the event that triggers our useEffect sync
     }, []);
 
     if (loading) {
@@ -317,6 +509,7 @@ const VideoGrid = ({ videos: initialVideos, loading }) => {
                         key={video.uniqueKey || video.id}
                         video={video}
                         onHide={handleHide}
+                        isSessionBlocked={sessionBlockedIds.has(video.id)}
                     />
                 ))}
             </AnimatePresence>

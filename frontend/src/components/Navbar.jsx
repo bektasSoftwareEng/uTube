@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getAvatarUrl, getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_TOKEN, UTUBE_USER } from '../utils/authConstants';
 import ApiClient from '../utils/ApiClient';
 import { useSidebar } from '../context/SidebarContext';
 
 
 const Navbar = () => {
-    const { isSidebarOpen, toggleSidebar, handleSidebarEnter, handleSidebarLeave } = useSidebar();
     // Read from disk during initialization
     const [user, setUser] = useState(() => {
         try {
@@ -168,44 +167,8 @@ const Navbar = () => {
     return (
         <nav className="absolute top-0 left-0 right-0 z-50 glass border-b border-white/5 h-16 sm:h-20 flex items-center px-4 sm:px-8">
             <div className="flex items-center justify-between w-full max-w-[1800px] mx-auto">
-                {/* Logo + Hamburger Section */}
+                {/* Logo Section */}
                 <div className="flex items-center gap-3 sm:gap-5">
-                    {/* Hamburger toggle */}
-                    <motion.button
-                        onClick={toggleSidebar}
-                        onMouseEnter={handleSidebarEnter}
-                        onMouseLeave={handleSidebarLeave}
-                        whileTap={{ scale: 0.88 }}
-                        className="relative w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-xl hover:bg-white/8 transition-colors shrink-0"
-                        title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-                        aria-label="Toggle sidebar"
-                    >
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { rotate: 45, y: 6, width: '18px' }
-                                : { rotate: 0, y: 0, width: '18px' }}
-                            transition={{ duration: 0.22 }}
-                            className="block h-[2px] bg-white/80 rounded-full origin-center"
-                            style={{ width: 18 }}
-                        />
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { opacity: 0, scaleX: 0 }
-                                : { opacity: 1, scaleX: 1 }}
-                            transition={{ duration: 0.18 }}
-                            className="block h-[2px] bg-white/80 rounded-full"
-                            style={{ width: 14 }}
-                        />
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { rotate: -45, y: -6, width: '18px' }
-                                : { rotate: 0, y: 0, width: '12px' }}
-                            transition={{ duration: 0.22 }}
-                            className="block h-[2px] bg-white/80 rounded-full origin-center"
-                            style={{ width: 12 }}
-                        />
-                    </motion.button>
-
                     <Link to="/" className="flex items-center gap-2 group">
                         <motion.div
                             whileHover={{ rotate: -10, scale: 1.1 }}
@@ -223,7 +186,7 @@ const Navbar = () => {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search porn videos..."
+                            placeholder="search anything you want..."
                             className="w-full bg-black/40 border border-white/10 rounded-full px-6 py-2.5 sm:py-3 focus:outline-none focus:border-primary/50 focus:shadow-[0_0_15px_rgba(255,0,0,0.3)] transition-all text-sm group-hover:bg-black/60"
                         />
                         <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/80 group-hover:text-white/40 transition-colors">
@@ -266,7 +229,7 @@ const Navbar = () => {
 
                             {/* Welcome Text */}
                             <span className="hidden sm:block text-sm font-black text-white italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
-                                Welcum, <span className="text-primary">{user?.username || 'User'}</span>
+                                Welcome, <span className="text-primary">{user?.username || 'User'}</span>
                             </span>
 
                             {/* ── Notification Bell (functional) ── */}
@@ -339,7 +302,7 @@ const Navbar = () => {
                                                                 {/* Thumbnail */}
                                                                 <div className="w-28 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
                                                                     <img
-                                                                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                                         alt={video.title}
                                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                                                         onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
@@ -420,6 +383,17 @@ const Navbar = () => {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                                 </svg>
                                                 Dashboard
+                                            </Link>
+
+                                            <Link
+                                                to={`/channel/@${user?.username}`}
+                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
+                                                onClick={() => setIsMenuOpen(false)}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                                My Channel
                                             </Link>
 
                                             <Link

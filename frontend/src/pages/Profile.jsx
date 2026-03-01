@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
-import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getAvatarUrl, getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import ApiClient from '../utils/ApiClient';
 
 const Profile = () => {
@@ -136,6 +136,16 @@ const Profile = () => {
                                     Edit Profile
                                 </button>
                                 <button
+                                    onClick={() => navigate(`/channel/@${user.username}`)}
+                                    className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
+                                    style={{ color: 'var(--primary)' }}
+                                >
+                                    <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    My Channel
+                                </button>
+                                <button
                                     onClick={handleLogout}
                                     className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-bold transition-all border border-red-500/10 flex items-center justify-center gap-2 group"
                                 >
@@ -178,7 +188,7 @@ const Profile = () => {
                                     >
                                         <div className="aspect-video bg-black rounded-lg overflow-hidden mb-2">
                                             <img
-                                                src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                 alt={video.title}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
