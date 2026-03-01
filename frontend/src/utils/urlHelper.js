@@ -11,6 +11,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const MEDIA_BASE_URL = import.meta.env.VITE_MEDIA_BASE_URL || '';
 const FLV_BASE_URL = import.meta.env.VITE_FLV_BASE_URL;
 const RTMP_URL = import.meta.env.VITE_RTMP_URL;
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 export const getValidUrl = (path, fallback) => {
