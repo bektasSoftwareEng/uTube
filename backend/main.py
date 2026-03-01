@@ -83,10 +83,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - Allow all for development to fix 403/CORS issues
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,6 +121,21 @@ app.include_router(stream_router, prefix=f"{API_PREFIX}/streams")
 # Chat routes: WS endpoint at /api/v1/ws/chat/... and HTTP at /api/v1/chat/history/...
 app.include_router(chat_router, prefix=API_PREFIX)
 
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Gracefully close database connections and clean up WAL files."""
+    from backend.database import engine
+    try:
+        # Checkpoint WAL: merges -wal into the main .db file and removes -shm/-wal
+        with engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        engine.dispose()
+        print("[SHUTDOWN] Database connections closed and WAL files cleaned up.", flush=True)
+    except Exception as e:
+        print(f"[SHUTDOWN WARNING] WAL cleanup error: {e}", flush=True)
+        engine.dispose()
 
 
 

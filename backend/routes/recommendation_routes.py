@@ -16,7 +16,13 @@ from collections import Counter
 from backend.database import get_db
 from backend.database.models import User, Video, Like, Subscription
 from backend.routes.auth_routes import get_current_user, get_optional_user
-from backend.routes.video_routes import VideoListResponse, AuthorResponse, get_thumbnail_url
+from backend.routes.video_routes import (
+    VideoListResponse, 
+    AuthorResponse, 
+    get_thumbnail_url, 
+    get_video_url, 
+    parse_tags
+)
 
 # Create router
 router = APIRouter(prefix="/feed", tags=["Recommendations"])
@@ -112,11 +118,13 @@ def get_recommended_feed(
         VideoListResponse(
             id=video.id,
             title=video.title,
+            video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
             upload_date=video.upload_date.isoformat(),
             duration=video.duration,
             category=video.category,
+            tags=parse_tags(video.tags),
             like_count=video.like_count,
             status=video.status,
             visibility=video.visibility,
@@ -168,12 +176,16 @@ def get_subscription_feed(
         VideoListResponse(
             id=video.id,
             title=video.title,
+            video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
             upload_date=video.upload_date.isoformat(),
             duration=video.duration,
             category=video.category,
+            tags=parse_tags(video.tags),
             like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,

@@ -50,6 +50,8 @@ class User(Base):
     
     # Live Streaming Metadata (new_update)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
+    is_live = Column(Boolean, default=False, nullable=False, index=True)
+    viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
     stream_thumbnail = Column(String(255), nullable=True, default=None)
@@ -57,11 +59,16 @@ class User(Base):
     is_live = Column(Boolean, default=False, nullable=False)
     
     # Email Verification & Account Status (main)
+    channel_description = Column(Text, nullable=True)
+    channel_banner_url = Column(String(255), nullable=True)
+    
+    # Email Verification
     is_verified = Column(Boolean, default=False, nullable=False)
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
     
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     

@@ -363,7 +363,7 @@ def get_user_comments(
             video={
                 "id": comment.video.id,
                 "title": comment.video.title,
-                "thumbnail_url": f"/storage/uploads/thumbnails/{comment.video.thumbnail_filename}"
+                "thumbnail_url": f"/uploads/thumbnails/{comment.video.thumbnail_filename}"
             }
         )
         for comment in comments

@@ -102,19 +102,22 @@ const VideoPlayer = ({ src, poster, onError }) => {
     const [hoverTime, setHoverTime] = useState(null);
     const [hoverX, setHoverX] = useState(0);
     const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+    const [showQualityMenu, setShowQualityMenu] = useState(false);
     const [playbackRate, setPlaybackRate] = useState(1);
+    const [quality, setQuality] = useState('Auto');
     const [pipActive, setPipActive] = useState(false);
     const [showVolume, setShowVolume] = useState(false);
 
     const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    const QUALITIES = ['Auto', '1080p HD', '720p', '480p', '360p'];
 
     // ── Auto-hide controls ──────────────────────────────────────────────────
     const scheduleHide = useCallback(() => {
         clearTimeout(hideTimer.current);
         hideTimer.current = setTimeout(() => {
-            if (playing && !showSpeedMenu) setShowControls(false);
+            if (playing && !showSpeedMenu && !showQualityMenu) setShowControls(false);
         }, 2800);
-    }, [playing, showSpeedMenu]);
+    }, [playing, showSpeedMenu, showQualityMenu]);
 
     const revealControls = useCallback(() => {
         setShowControls(true);
@@ -139,6 +142,10 @@ const VideoPlayer = ({ src, poster, onError }) => {
             }
         };
         const onDurationChange = () => setDuration(v.duration);
+        const onLoadedMetadata = () => {
+            setDuration(v.duration);
+            setCurrentTime(v.currentTime);
+        };
         const onVolumeChange = () => { setVolume(v.volume); setMuted(v.muted); };
         const onRateChange = () => setPlaybackRate(v.playbackRate);
 
@@ -147,14 +154,25 @@ const VideoPlayer = ({ src, poster, onError }) => {
         v.addEventListener('ended', onEnded);
         v.addEventListener('timeupdate', onTimeUpdate);
         v.addEventListener('durationchange', onDurationChange);
+        v.addEventListener('loadedmetadata', onLoadedMetadata);
         v.addEventListener('volumechange', onVolumeChange);
         v.addEventListener('ratechange', onRateChange);
+
+        if (v.readyState >= 1) {
+            setDuration(v.duration);
+            setCurrentTime(v.currentTime);
+            if (v.buffered.length > 0) {
+                setBuffered(v.buffered.end(v.buffered.length - 1));
+            }
+        }
+
         return () => {
             v.removeEventListener('play', onPlay);
             v.removeEventListener('pause', onPause);
             v.removeEventListener('ended', onEnded);
             v.removeEventListener('timeupdate', onTimeUpdate);
             v.removeEventListener('durationchange', onDurationChange);
+            v.removeEventListener('loadedmetadata', onLoadedMetadata);
             v.removeEventListener('volumechange', onVolumeChange);
             v.removeEventListener('ratechange', onRateChange);
         };
@@ -336,27 +354,29 @@ const VideoPlayer = ({ src, poster, onError }) => {
 
             {/* ── Bottom gradient fade ── */}
             <div
-                className="absolute inset-x-0 bottom-0 h-36 pointer-events-none transition-opacity duration-300"
+                className="absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300"
                 style={{
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)',
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
                     opacity: showControls ? 1 : 0,
                 }}
             />
 
-            {/* ── Control Bar ── */}
+            {/* ── Glass Controls ── */}
             <motion.div
                 animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 8 }}
-                transition={{ duration: 0.22 }}
-                className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-2 flex flex-col gap-3"
-                style={{ pointerEvents: showControls ? 'auto' : 'none' }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3"
+                style={{
+                    pointerEvents: showControls ? 'auto' : 'none',
+                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Progress Track ── */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center w-full">
                     <div
                         ref={progressRef}
                         className="relative flex-1 h-1 group/bar cursor-pointer"
-                        style={{ paddingBlock: '8px', marginBlock: '-8px' }}
+                        style={{ paddingBlock: '6px', marginBlock: '-6px' }}
                         onClick={onProgressClick}
                         onMouseMove={onProgressMouseMove}
                         onMouseLeave={() => setHoverTime(null)}
@@ -369,13 +389,12 @@ const VideoPlayer = ({ src, poster, onError }) => {
                                 className="absolute left-0 top-0 h-full bg-white/20 rounded-full transition-all"
                                 style={{ width: `${bufferedPct}%` }}
                             />
-                            {/* Played — dark black-to-burgundy */}
+                            {/* Played — solid red */}
                             <div
-                                className="absolute left-0 top-0 h-full rounded-full transition-all"
+                                className="absolute left-0 top-0 h-full rounded-full transition-all bg-[#ff0000]"
                                 style={{
                                     width: `${progress}%`,
-                                    background: 'linear-gradient(90deg, #0a0000, #3b0000, #7f1d1d)',
-                                    boxShadow: '0 0 10px rgba(127,29,29,0.8)',
+                                    boxShadow: '0 0 10px rgba(255,0,0,0.5)',
                                 }}
                             />
                         </div>
@@ -392,10 +411,10 @@ const VideoPlayer = ({ src, poster, onError }) => {
 
                         {/* Scrubber thumb — appears on hover/seeking */}
                         <div
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-white shadow-md opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150"
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#ff0000] opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150"
                             style={{
                                 left: `${progress}%`,
-                                boxShadow: '0 0 0 3px rgba(127,29,29,0.5)',
+                                boxShadow: '0 0 6px rgba(255,0,0,0.8)',
                                 opacity: seeking ? 1 : undefined,
                             }}
                         />
@@ -477,14 +496,14 @@ const VideoPlayer = ({ src, poster, onError }) => {
                         </span>
                     </div>
 
-                    {/* Right: Speed, PiP, Fullscreen */}
-                    <div className="flex items-center gap-1">
+                    {/* Right: Speed, Quality, PiP, Fullscreen */}
+                    <div className="flex items-center gap-0.5">
                         {/* Playback Speed */}
                         <div className="relative">
                             <Tip label="Playback speed">
                                 <button
-                                    onClick={() => setShowSpeedMenu(p => !p)}
-                                    className={`text-[11px] font-black px-2 py-1 rounded-lg transition-all ${showSpeedMenu ? 'bg-primary/20 text-primary' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                                    onClick={() => { setShowSpeedMenu(p => !p); setShowQualityMenu(false); }}
+                                    className={`text-[11px] font-black px-2 py-1 rounded-lg transition-all ${showSpeedMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
                                 >
                                     {playbackRate === 1 ? '1×' : `${playbackRate}×`}
                                 </button>
@@ -496,15 +515,51 @@ const VideoPlayer = ({ src, poster, onError }) => {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-2 bg-black/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-1 min-w-[80px]"
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[100px]"
                                     >
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Speed</div>
                                         {SPEEDS.map(s => (
                                             <button
                                                 key={s}
                                                 onClick={() => setSpeed(s)}
-                                                className={`w-full text-left px-4 py-1.5 text-xs font-bold transition-colors ${playbackRate === s ? 'text-primary bg-primary/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${playbackRate === s ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
                                             >
                                                 {s === 1 ? 'Normal' : `${s}×`}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Quality Settings */}
+                        <div className="relative">
+                            <Tip label="Settings">
+                                <button
+                                    onClick={() => { setShowQualityMenu(p => !p); setShowSpeedMenu(false); }}
+                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${showQualityMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
+                                >
+                                    <SettingsIcon />
+                                </button>
+                            </Tip>
+                            <AnimatePresence>
+                                {showQualityMenu && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[120px]"
+                                    >
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Quality</div>
+                                        {QUALITIES.map(q => (
+                                            <button
+                                                key={q}
+                                                onClick={() => { setQuality(q); setShowQualityMenu(false); }}
+                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                <span>{q}</span>
+                                                {quality === q && <span className="text-[10px]">&bull;</span>}
                                             </button>
                                         ))}
                                     </motion.div>
@@ -517,7 +572,7 @@ const VideoPlayer = ({ src, poster, onError }) => {
                             <Tip label={pipActive ? 'Exit PiP' : 'Picture-in-picture'}>
                                 <button
                                     onClick={togglePip}
-                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${pipActive ? 'text-primary bg-primary/10' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
+                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${pipActive ? 'text-white bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
                                 >
                                     <PipIcon />
                                 </button>

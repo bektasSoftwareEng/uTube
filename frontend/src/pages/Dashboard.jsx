@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_USER } from '../utils/authConstants';
-import { getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 
 // ─── Mini bar chart component ──────────────────────────────────────────────
 const MiniBar = ({ value, max, color = 'var(--gold)' }) => {
@@ -95,6 +95,18 @@ const Dashboard = () => {
         } else {
             setSortBy(col);
             setSortDir('desc');
+        }
+    };
+
+    const handleDeleteVideo = async (videoId) => {
+        if (window.confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
+            try {
+                await ApiClient.delete(`/videos/${videoId}`);
+                setVideos(videos.filter(v => v.id !== videoId));
+            } catch (err) {
+                console.error("Error deleting video:", err);
+                alert("Failed to delete video. Please try again.");
+            }
         }
     };
 
@@ -262,7 +274,7 @@ const Dashboard = () => {
                                             <Link to={`/video/${video.id}`} className="flex items-center gap-3">
                                                 <div className="w-20 aspect-video rounded-lg overflow-hidden shrink-0 bg-black ring-1 ring-white/5">
                                                     <img
-                                                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                         alt={video.title}
                                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                         onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
@@ -312,6 +324,15 @@ const Dashboard = () => {
                                                         </svg>
                                                     </button>
                                                 </Link>
+                                                <button
+                                                    onClick={() => handleDeleteVideo(video.id)}
+                                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/10 text-white/50 hover:text-red-500 transition-colors"
+                                                    title="Delete Video"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </td>
                                     </motion.tr>

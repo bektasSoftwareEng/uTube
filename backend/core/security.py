@@ -16,6 +16,7 @@ import secrets
 from jose import JWTError, jwt
 from fastapi import HTTPException, status
 from pathlib import Path
+from email_validator import validate_email as validate_email_lib, EmailNotValidError
 
 from backend.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -174,25 +175,48 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
     return True, ""
 
 
-def validate_email(email: str) -> bool:
+# Common disposable email domains
+DISPOSABLE_DOMAINS = {
+    'mailinator.com', '10minutemail.com', 'temp-mail.org', 'guerrillamail.com', 
+    'yopmail.com', 'throwawaymail.com', 'tempmail.com', 'getnada.com', 
+    'sharklasers.com', 'maildrop.cc'
+}
+
+def validate_email(email: str) -> tuple[bool, str]:
     """
-    Basic email validation.
+    Robust email validation using email-validator library and a disposable domain check.
     
     Args:
         email: Email address to validate
         
     Returns:
-        True if email format is valid, False otherwise
+        Tuple of (is_valid, error_message)
         
     Example:
         >>> validate_email("user@example.com")
-        True
+        (True, "")
         >>> validate_email("invalid-email")
-        False
+        (False, "The email address is not valid. It must have exactly one @-sign.")
+        >>> validate_email("user@mailinator.com")
+        (False, "Disposable email providers are not allowed.")
     """
-    import re
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
+    try:
+        # Check that the email address is valid. Turn on check_deliverability
+        # for first-time validations to ensure the domain has MX records.
+        valid = validate_email_lib(email, check_deliverability=True)
+        
+        # Extract the normalized domain
+        domain = valid.domain.lower()
+        
+        # Check against blacklist
+        if domain in DISPOSABLE_DOMAINS:
+            return False, "Disposable email providers are not allowed."
+            
+        return True, ""
+        
+    except EmailNotValidError as e:
+        # The exception message is human-readable and specific to the exact problem
+        return False, str(e)
 
 
 # Test the security functions
