@@ -35,6 +35,14 @@ ALLOWED_VIDEO_FORMATS = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
 ALLOWED_IMAGE_FORMATS = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
 # Storage Paths
+STORAGE_DIR = BASE_DIR / "backend" / "storage"
+UPLOADS_DIR = STORAGE_DIR  # Root level matching static mount route
+VIDEOS_DIR = STORAGE_DIR / "videos"
+THUMBNAILS_DIR = STORAGE_DIR / "thumbnails"
+AVATARS_DIR = STORAGE_DIR / "avatars"
+PREVIEWS_DIR = STORAGE_DIR / "previews"  # Phase 6: AI thumbnail generation frames
+BACKGROUNDS_DIR = STORAGE_DIR / "backgrounds"
+BANNERS_DIR = STORAGE_DIR / "banners"
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
 VIDEOS_DIR = UPLOADS_DIR / "videos"
@@ -43,9 +51,10 @@ AVATARS_DIR = UPLOADS_DIR / "avatars"
 BANNERS_DIR = UPLOADS_DIR / "banners"
 PREVIEWS_DIR = UPLOADS_DIR / "previews"  # Phase 6: AI thumbnail generation frames
 TEMP_DIR = STORAGE_DIR / "temp"
-TEMP_UPLOADS_DIR = UPLOADS_DIR / "temp"
+TEMP_UPLOADS_DIR = STORAGE_DIR / "temp"
 
 # Ensure storage directories exist
+for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, PREVIEWS_DIR, BACKGROUNDS_DIR, BANNERS_DIR, TEMP_DIR, TEMP_UPLOADS_DIR]:
 for directory in [STORAGE_DIR, UPLOADS_DIR, VIDEOS_DIR, THUMBNAILS_DIR, AVATARS_DIR, BANNERS_DIR, PREVIEWS_DIR, TEMP_DIR, TEMP_UPLOADS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 

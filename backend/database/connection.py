@@ -152,9 +152,18 @@ def run_schema_migrations():
             existing_columns = {row[1] for row in cursor.fetchall()}
             
             user_columns = [
+                ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
+                ("verification_code", "VARCHAR(6)"),
+                ("verification_expires_at", "DATETIME"),
+                ("pending_email", "VARCHAR(100)"),
+                ("channel_description", "TEXT"),
+                ("channel_banner_url", "VARCHAR(255)"),
                 ("stream_key", "VARCHAR(100)"),
                 ("stream_title", "VARCHAR(100)"),
                 ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'"),
+                ("stream_thumbnail", "VARCHAR(255)"),
+                ("studio_bg_url", "VARCHAR(500)"),
+                ("is_live", "BOOLEAN DEFAULT False NOT NULL"),
                 ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
                 ("verification_code", "VARCHAR(6)"),
                 ("verification_expires_at", "DATETIME"),
@@ -168,6 +177,19 @@ def run_schema_migrations():
                         logger.info(f"  ✅ Added missing column: users.{col_name}")
                     except Exception as e:
                         logger.warning(f"  ⚠️ Could not add users.{col_name}: {e}")
+
+        # --- Migration 4: UserBackgrounds Table (Name field) ---
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_backgrounds'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(user_backgrounds)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            if "name" not in existing_columns:
+                try:
+                    cursor.execute("ALTER TABLE user_backgrounds ADD COLUMN name VARCHAR(100)")
+                    logger.info("  ✅ Added missing column: user_backgrounds.name")
+                except Exception as e:
+                    logger.warning(f"  ⚠️ Could not add user_backgrounds.name: {e}")
 
         conn.commit()
         conn.close()

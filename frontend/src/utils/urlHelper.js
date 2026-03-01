@@ -2,18 +2,29 @@
  * URL Helper Utility
  * Dynamically constructs asset URLs based on the active environment.
  * Uses Vite environment variables (import.meta.env) with reliable fallbacks.
+ *
+ * ARCHITECTURE NOTE:
+ * - API routes live under /api/v1/* (proxied by Vite in dev)
+ * - Static files live under /storage/* and /uploads/* (also proxied in dev)
+ * - In production, Nginx handles both proxies to the backend
  */
 
 // --- Environment-Driven Base URLs ---
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const MEDIA_BASE_URL = import.meta.env.VITE_MEDIA_BASE_URL || '';
-const FLV_BASE_URL = import.meta.env.VITE_FLV_BASE_URL || 'http://127.0.0.1:8080/live';
+const FLV_BASE_URL = import.meta.env.VITE_FLV_BASE_URL || '/live';
 const RTMP_URL = import.meta.env.VITE_RTMP_URL || 'rtmp://127.0.0.1:1935/live';
+
+// WebSocket URL — auto-derive from current host in dev, explicit in prod
+const WS_BASE_URL = import.meta.env.VITE_WS_URL ||
+    `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
 
 /**
  * Constructs a valid, full URL for a given asset path.
  * - Returns absolute URLs (http/https) as-is.
- * - Prepends API_BASE_URL to relative paths.
+ * - Paths starting with /storage or /uploads are media paths — they go through
+ *   the media proxy, NOT the API prefix.
+ * - All other relative paths get the API_BASE_URL prefix.
  * @param {string} path - The raw asset path from the backend.
  * @param {string} fallback - A fallback URL if the path is invalid.
  * @returns {string}
@@ -30,9 +41,14 @@ export const getValidUrl = (path, fallback) => {
         normalizedPath = `/${normalizedPath}`;
     }
 
-    // Media paths should NEVER point to API_BASE_URL (/api), 
-    // they should go directly to the storage container.
-    return `${MEDIA_BASE_URL}${normalizedPath}`;
+    // Static media paths: /storage/* and /uploads/* are served directly by the
+    // backend (proxied in dev by Vite, served by Nginx in production).
+    // These must NOT get the /api prefix.
+    if (normalizedPath.startsWith('/storage') || normalizedPath.startsWith('/uploads')) {
+        return `${MEDIA_BASE_URL}${normalizedPath}`;
+    }
+
+    return `${API_BASE_URL}${normalizedPath}`;
 };
 
 /**
@@ -60,6 +76,7 @@ export const getAvatarUrl = (path, username) => {
 
 /**
  * Constructs a full media URL for assets served from the storage/media server.
+ * Use this for paths that are already known to be media paths (e.g., from Upload.jsx).
  * @param {string} path - The relative path (e.g., /storage/uploads/previews/frame.jpg)
  * @returns {string}
  */
@@ -76,7 +93,7 @@ export const getMediaUrl = (path) => {
 };
 
 // --- Exported Constants ---
-export { API_BASE_URL, MEDIA_BASE_URL, FLV_BASE_URL, RTMP_URL };
+export { API_BASE_URL, MEDIA_BASE_URL, FLV_BASE_URL, RTMP_URL, WS_BASE_URL };
 
 export const THUMBNAIL_FALLBACK = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800';
 export const AVATAR_FALLBACK = 'https://ui-avatars.com/api/?name=User&background=random&color=fff';

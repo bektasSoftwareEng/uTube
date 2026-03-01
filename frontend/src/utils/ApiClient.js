@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { UTUBE_TOKEN, UTUBE_USER } from './authConstants';
+import { jwtDecode } from 'jwt-decode';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -10,11 +11,66 @@ const ApiClient = axios.create({
     },
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
 // Request interceptor for tokens
 ApiClient.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem(UTUBE_TOKEN);
+    async (config) => {
+        let token = localStorage.getItem(UTUBE_TOKEN);
+
         if (token) {
+            try {
+                const decoded = jwtDecode(token);
+                const currentTime = Date.now() / 1000;
+                // Auto-refresh token if it expires in less than 5 minutes
+                if (decoded.exp && (decoded.exp - currentTime) < 300) {
+                    if (!isRefreshing) {
+                        isRefreshing = true;
+                        try {
+                            const response = await axios.post(`${API_BASE}/v1/auth/refresh`, {}, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const newToken = response.data.access_token;
+                            localStorage.setItem(UTUBE_TOKEN, newToken);
+                            ApiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+                            token = newToken;
+                            processQueue(null, newToken);
+                        } catch (err) {
+                            processQueue(err, null);
+                            console.error('Core token refresh utterly failed. Forcing logout.', err);
+                            localStorage.removeItem(UTUBE_TOKEN);
+                            localStorage.removeItem(UTUBE_USER);
+                            window.location.href = '/login';
+                        } finally {
+                            isRefreshing = false;
+                        }
+                    } else {
+                        // Queue requests while refreshing
+                        return new Promise(function (resolve, reject) {
+                            failedQueue.push({ resolve, reject });
+                        }).then(newToken => {
+                            config.headers.Authorization = `Bearer ${newToken}`;
+                            return config;
+                        }).catch(err => {
+                            return Promise.reject(err);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Invalid token metadata detected - skipping proactive refresh.', e);
+            }
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
@@ -25,15 +81,19 @@ ApiClient.interceptors.request.use(
 // Response interceptor for handling 401s and 429s
 ApiClient.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+        const originalRequest = error.config;
         const status = error.response?.status;
 
-        if (status === 401) {
-            // Secure Handling: Immediately clear token to prevent session hijacking
-            console.error('Unauthorized access - potential token expiration or hijacking attempt');
+        // If 401 and not already a retry for refresh endpoint
+        if (status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
+            originalRequest._retry = true;
+            console.warn('401 Intercepted. Token expired completely or hijacked.');
+
+            // As a final safety net, try refreshing it via the explicit API call if available
+            // If it fails, boot them
             localStorage.removeItem(UTUBE_TOKEN);
             localStorage.removeItem(UTUBE_USER);
-            // Force a reload or redirect to login to ensure clean state
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';
             }
@@ -48,5 +108,5 @@ ApiClient.interceptors.response.use(
     }
 );
 
-
 export default ApiClient;
+

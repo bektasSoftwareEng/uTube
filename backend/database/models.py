@@ -44,12 +44,21 @@ class User(Base):
     
     # Profile Information
     profile_image = Column(String(255), nullable=True, default="default_avatar.png")
+    channel_description = Column(Text, nullable=True)
+    channel_banner_url = Column(String(255), nullable=True)
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
+    
+    # Live Streaming Metadata (new_update)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
     is_live = Column(Boolean, default=False, nullable=False, index=True)
     viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
+    stream_thumbnail = Column(String(255), nullable=True, default=None)
+    studio_bg_url = Column(String(500), nullable=True, default=None)
+    is_live = Column(Boolean, default=False, nullable=False)
+    
+    # Email Verification & Account Status (main)
     channel_description = Column(Text, nullable=True)
     channel_banner_url = Column(String(255), nullable=True)
     
@@ -58,6 +67,7 @@ class User(Base):
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
+    
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -101,8 +111,46 @@ class User(Base):
         lazy="dynamic"
     )
     
+    backgrounds = relationship(
+        "UserBackground",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="dynamic"
+    )
+    
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"
+
+
+class UserBackground(Base):
+    """
+    UserBackground model for storing custom Live Studio backgrounds.
+    
+    Attributes:
+        id: Primary key
+        user_id: Foreign key to User
+        file_path: Relative path to the uploaded video file
+        thumbnail_path: Relative path to the generated thumbnail image (optional)
+        is_default: Boolean indicating if it's the active background
+        created_at: Upload timestamp
+        
+    Relationships:
+        user: The user who uploaded this background
+    """
+    __tablename__ = "user_backgrounds"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=True)
+    file_path = Column(String(500), nullable=False)
+    thumbnail_path = Column(String(500), nullable=True)
+    is_default = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    user = relationship("User", back_populates="backgrounds")
+    
+    def __repr__(self):
+        return f"<UserBackground(id={self.id}, user_id={self.user_id}, path='{self.file_path}')>"
 
 
 class Video(Base):
@@ -382,3 +430,108 @@ class CommentLike(Base):
     
     def __repr__(self):
         return f"<CommentLike(id={self.id}, user={self.user_id}, comment={self.comment_id}, dislike={self.is_dislike})>"
+
+
+class StreamLike(Base):
+    """
+    StreamLike model for tracking likes on live streams.
+    
+    Attributes:
+        id: Primary key
+        user_id: Foreign key to User (who liked)
+        streamer_id: Foreign key to User (whose stream was liked)
+        created_at: When the like was created
+    """
+    __tablename__ = "stream_likes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Unique constraint: one like per user per streamer
+    __table_args__ = (
+        UniqueConstraint('user_id', 'streamer_id', name='unique_stream_like'),
+    )
+    
+    def __repr__(self):
+        return f"<StreamLike(id={self.id}, user={self.user_id}, streamer={self.streamer_id})>"
+
+
+class ChatMessage(Base):
+    """
+    ChatMessage model for persisting live stream chat messages.
+    
+    Attributes:
+        id: Primary key
+        room: Streamer username (room identifier)
+        sender: Username of the message sender
+        text: Message content
+        is_mod: Whether sender is a moderator
+        created_at: When the message was sent
+    """
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    sender = Column(String(50), nullable=False)
+    text = Column(Text, nullable=False)
+    is_mod = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    def __repr__(self):
+        return f"<ChatMessage(id={self.id}, room='{self.room}', sender='{self.sender}')>"
+
+
+class ActivityLog(Base):
+    """
+    ActivityLog model for persisting stream activity events.
+    
+    Attributes:
+        id: Primary key
+        room: Streamer username (room identifier)
+        username: User who performed the action
+        activity_type: Type of activity (like, subscribe)
+        created_at: When the activity occurred
+    """
+    __tablename__ = "activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    activity_type = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<ActivityLog(id={self.id}, room='{self.room}', type='{self.activity_type}')>"
+
+
+class ClipLog(Base):
+    """
+    ClipLog model for persisting clip marker timestamps.
+    """
+    __tablename__ = "clip_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    clip_timestamp = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<ClipLog(id={self.id}, room='{self.room}')>"
+
+
+class StreamMarker(Base):
+    """Stream marker model for saving timestamp markers during broadcast."""
+    __tablename__ = "stream_markers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    label = Column(String(200), nullable=True)
+    marker_timestamp = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<StreamMarker(id={self.id}, room='{self.room}')>"
