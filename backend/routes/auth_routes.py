@@ -1,29 +1,33 @@
 """
 Authentication Routes
 ---------------------
-Handles user registration, login, and authentication.
+Handles user registration, login, authentication, and public profile access.
 
 Endpoints:
 - POST /register: Create a new user account
 - POST /login: Authenticate and get access token
 - GET /me: Get current user information
+- GET /profile/{username}: Public user profile (no auth required)
+- POST /live/like/{username}: Like/unlike a live stream
 """
 
 from jose import JWTError
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import datetime
 import shutil
 import os
 from pathlib import Path
 import uuid
 
 from backend.database import get_db
-from backend.database.models import User, Subscription, Video
-from backend.core.config import AVATARS_DIR
+from backend.database.models import User, Subscription, Video, StreamLike, ActivityLog
+from backend.chat.manager import manager
+from backend.core.config import THUMBNAILS_DIR, AVATARS_DIR
 from backend.core.security import (
     hash_password,
     verify_password,
@@ -88,6 +92,7 @@ class LiveMetadataUpdate(BaseModel):
     """Request model for live stream metadata updates."""
     title: str = Field(..., max_length=100)
     category: str = Field(..., max_length=50)
+    studio_bg_url: Optional[str] = Field(None, max_length=500)
 
 
 class Token(BaseModel):
@@ -111,6 +116,36 @@ class UserResponse(BaseModel):
     video_count: int = 0
     total_views: int = 0
     
+    class Config:
+        from_attributes = True
+
+
+class PublicProfileResponse(BaseModel):
+    """Response model for public profile info (no email, no sensitive data)."""
+    id: int
+    username: str
+    profile_image: Optional[str] = None
+    stream_title: Optional[str] = None
+    stream_category: Optional[str] = None
+    stream_thumbnail: Optional[str] = None
+    subscriber_count: int = 0
+    video_count: int = 0
+    is_live: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class BackgroundResponse(BaseModel):
+    """Response model for user studio backgrounds."""
+    id: int
+    user_id: int
+    name: Optional[str] = None
+    file_path: str
+    thumbnail_path: Optional[str] = None
+    is_default: bool
+    created_at: datetime
+
     class Config:
         from_attributes = True
 
@@ -339,6 +374,95 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/refresh", response_model=Token)
+def refresh_token(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh JWT token.
+    
+    Accepts a valid (unexpired or near-expiration) token via the Authorization header
+    and issues a completely fresh JWT with a renewed expiration window.
+    """
+    # Generate new access token
+    access_token = create_access_token({"sub": current_user.id})
+    
+    return Token(
+        access_token=access_token,
+        user_id=current_user.id,
+        username=current_user.username
+    )
+
+# ============================================================================
+# RTMP Media Server Webhooks
+# ============================================================================
+
+@router.post("/live-auth")
+async def live_stream_auth(request: Request, db: Session = Depends(get_db)):
+    """
+    Webhook for Node Media Server (NMS) prePublish event.
+    Sets user.is_live = True when a valid stream key is presented.
+    """
+    try:
+        # NMS sends form data
+        form_data = await request.form()
+        
+        # The 'name' field in RTMP rtmp://host/live/__name__ is our stream key
+        stream_key = form_data.get("name")
+        
+        if not stream_key:
+            raise HTTPException(status_code=403, detail="Stream key missing")
+            
+        # Verify the key exists in our database
+        user = db.query(User).filter(User.stream_key == stream_key).first()
+        
+        if not user:
+            # Return 403 Forbidden to tell NMS to reject the publisher
+            raise HTTPException(status_code=403, detail="Invalid stream key")
+            
+        # Mark user as LIVE
+        user.is_live = True
+        db.commit()
+        
+        # Broadcast the status update to everyone in this user's room
+        await manager.broadcast_status_update(user.username, True)
+            
+        # Return 200 OK to allow Node Media Server to publish the stream
+        return {"status": "ok"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AUTH ERROR] live-auth failed: {e}")
+        raise HTTPException(status_code=403, detail="Auth server error")
+
+
+@router.post("/live-publish-done")
+async def live_publish_done(request: Request, db: Session = Depends(get_db)):
+    """
+    Webhook for Node Media Server (NMS) donePublish event.
+    Sets user.is_live = False when the stream stops.
+    """
+    try:
+        form_data = await request.form()
+        stream_key = form_data.get("name")
+        
+        if stream_key:
+            user = db.query(User).filter(User.stream_key == stream_key).first()
+            if user:
+                user.is_live = False
+                db.commit()
+                print(f"[AUTH] User {user.username} is now offline.")
+                # Broadcast the status update to everyone in this user's room
+                await manager.broadcast_status_update(user.username, False)
+                
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[AUTH ERROR] live-publish-done failed: {e}")
+        return {"status": "ok"} # Always return 200 to NMS for done events
+
+
 def build_user_response(user: User, db: Session) -> UserResponse:
     """Build a UserResponse with live stats from the database."""
     subscriber_count = db.query(func.count(Subscription.id)).filter(
@@ -511,7 +635,7 @@ def update_user_profile(
 # ============================================================================
 
 @router.post("/subscribe/{user_id}", status_code=status.HTTP_201_CREATED)
-def subscribe_to_user(
+async def subscribe_to_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -536,6 +660,21 @@ def subscribe_to_user(
     new_sub = Subscription(follower_id=current_user.id, following_id=user_id)
     db.add(new_sub)
     db.commit()
+    
+    # Broadcast activity to streamer's chat room
+    try:
+        activity = ActivityLog(
+            room=user_to_follow.username,
+            username=current_user.username,
+            activity_type="subscribe"
+        )
+        db.add(activity)
+        db.commit()
+        await manager.broadcast_activity(
+            user_to_follow.username, "subscribe", current_user.username
+        )
+    except Exception:
+        pass
     
     return {"message": "Subscribed successfully"}
 
@@ -665,11 +804,293 @@ def update_live_metadata(
     print(f"Server Log: Updating metadata to Title: {metadata_data.title}")
     current_user.stream_title = metadata_data.title
     current_user.stream_category = metadata_data.category
+    if metadata_data.studio_bg_url is not None:
+        current_user.studio_bg_url = metadata_data.studio_bg_url
     db.commit()
     db.refresh(current_user)
     
     return {
         "message": "Metadata updated gracefully",
         "stream_title": current_user.stream_title,
-        "stream_category": current_user.stream_category
+        "stream_category": current_user.stream_category,
+        "studio_bg_url": current_user.studio_bg_url
     }
+
+
+# ============================================================================
+# Public Profile (No auth required)
+# ============================================================================
+
+@router.get("/profile/{username}", response_model=PublicProfileResponse)
+def get_public_profile(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get a user's public profile by username.
+    
+    This endpoint is PUBLIC — no login required.
+    Returns only public-safe fields (no email, no password_hash).
+    Used by WatchPage to display stream metadata for any user.
+    """
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    subscriber_count = db.query(func.count(Subscription.id)).filter(
+        Subscription.following_id == user.id
+    ).scalar() or 0
+    
+    video_count = db.query(func.count(Video.id)).filter(
+        Video.user_id == user.id
+    ).scalar() or 0
+    
+    return PublicProfileResponse(
+        id=user.id,
+        username=user.username,
+        profile_image=user.profile_image,
+        stream_title=user.stream_title,
+        stream_category=user.stream_category,
+        subscriber_count=subscriber_count,
+        video_count=video_count,
+        is_live=False  # TODO: Check actual RTMP server status via API
+    )
+
+
+# ============================================================================
+# Live Stream Like (Toggle)
+# ============================================================================
+
+@router.post("/live/like/{username}")
+async def toggle_live_like(
+    username: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Like or unlike a user's live stream (toggle).
+    
+    - If the current user has NOT liked this stream, create a like.
+    - If the current user HAS liked this stream, remove the like.
+    Returns the new total like count and the user's current like state.
+    """
+    streamer = db.query(User).filter(User.username == username).first()
+    if not streamer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Streamer not found"
+        )
+    
+    if streamer.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot like your own stream"
+        )
+    
+    # Check for existing like
+    existing_like = db.query(StreamLike).filter(
+        StreamLike.user_id == current_user.id,
+        StreamLike.streamer_id == streamer.id
+    ).first()
+    
+    if existing_like:
+        # Unlike — remove the record
+        db.delete(existing_like)
+        db.commit()
+        liked = False
+    else:
+        # Like — create the record
+        new_like = StreamLike(user_id=current_user.id, streamer_id=streamer.id)
+        db.add(new_like)
+        db.commit()
+        liked = True
+        
+        # Broadcast activity to streamer's chat room (only on new likes)
+        try:
+            activity = ActivityLog(
+                room=username,
+                username=current_user.username,
+                activity_type="like"
+            )
+            db.add(activity)
+            db.commit()
+            await manager.broadcast_activity(
+                username, "like", current_user.username
+            )
+        except Exception:
+            pass
+    
+    # Count total likes for this streamer
+    total_likes = db.query(func.count(StreamLike.id)).filter(
+        StreamLike.streamer_id == streamer.id
+    ).scalar() or 0
+    
+    return {
+        "success": True,
+        "liked": liked,
+        "new_like_count": total_likes
+    }
+
+
+# ============================================================================
+# Background Library Management
+# ============================================================================
+
+from backend.database.models import UserBackground
+
+BACKGROUNDS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage", "backgrounds")
+os.makedirs(BACKGROUNDS_DIR, exist_ok=True)
+
+@router.post("/upload-background", response_model=BackgroundResponse)
+async def upload_background(
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload a new custom background video for the Live Studio."""
+    if not file.content_type.startswith("video/"):
+        raise HTTPException(status_code=400, detail="Only video files are allowed")
+
+    file_extension = Path(file.filename).suffix
+    unique_filename = f"{current_user.id}_{uuid.uuid4().hex}{file_extension}"
+    file_path = os.path.join(BACKGROUNDS_DIR, unique_filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    db_bg = UserBackground(
+        user_id=current_user.id,
+        name=name,
+        file_path=f"/backgrounds/{unique_filename}",
+        is_default=False
+    )
+    db.add(db_bg)
+    db.commit()
+    db.refresh(db_bg)
+    
+    return db_bg
+
+
+@router.get("/backgrounds", response_model=list[BackgroundResponse])
+def get_user_backgrounds(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Retrieve all backgrounds uploaded by the current user."""
+    backgrounds = db.query(UserBackground).filter(UserBackground.user_id == current_user.id).order_by(UserBackground.created_at.desc()).all()
+    return backgrounds
+
+
+@router.put("/backgrounds/{bg_id}/select")
+def select_background(
+    bg_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Set a specific user background as the active studio background."""
+    bg = db.query(UserBackground).filter(UserBackground.id == bg_id, UserBackground.user_id == current_user.id).first()
+    if not bg:
+        raise HTTPException(status_code=404, detail="Background not found")
+        
+    current_user.studio_bg_url = bg.file_path
+    
+    # Mark others as not default, this one as default
+    db.query(UserBackground).filter(UserBackground.user_id == current_user.id).update({"is_default": False})
+    bg.is_default = True
+    
+    db.commit()
+    
+    return {"success": True, "active_background": bg.file_path}
+
+
+@router.delete("/backgrounds/{bg_id}")
+def delete_background(
+    bg_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a custom background."""
+    bg = db.query(UserBackground).filter(UserBackground.id == bg_id, UserBackground.user_id == current_user.id).first()
+    if not bg:
+        raise HTTPException(status_code=404, detail="Background not found")
+        
+    # Remove physical file
+    filename = bg.file_path.split("/")[-1]
+    physical_path = os.path.join(BACKGROUNDS_DIR, filename)
+    if os.path.exists(physical_path):
+        os.remove(physical_path)
+        
+    # If active, revert defaults
+    if bg.is_default or current_user.studio_bg_url == bg.file_path:
+        current_user.studio_bg_url = None
+        
+    db.delete(bg)
+    db.commit()
+    return {"success": True}
+
+# ============================================================================
+# Stream Thumbnail Upload
+# ============================================================================
+
+@router.post("/live/thumbnail")
+async def upload_stream_thumbnail(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a custom thumbnail for the user's live stream.
+    Replaces the existing thumbnail if one exists.
+    Enforces a 2MB limit and standard image formats.
+    """
+    try:
+        # Guarantee directory exists
+        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+
+        # 1. Validate Extension
+        ext = os.path.splitext(file.filename)[1].lower()
+        allowed_exts = ['.jpg', '.jpeg', '.png', '.webp']
+        if ext not in allowed_exts:
+            raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are allowed.")
+            
+        # 2. Validate Size (2MB Limit)
+        file_bytes = await file.read()
+        if len(file_bytes) > 2 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Thumbnail must be under 2MB.")
+        await file.seek(0)
+        
+        # 3. Cleanup Previous Thumbnail
+        if current_user.stream_thumbnail:
+            try:
+                old_filename = current_user.stream_thumbnail.split('/')[-1]
+                old_path = os.path.join(THUMBNAILS_DIR, old_filename)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            except Exception as e:
+                print(f"Failed to delete old thumbnail: {e}")
+                    
+        # 4. Save New Thumbnail
+        filename = f"thumb_{current_user.username}_{uuid.uuid4().hex[:8]}{ext}"
+        filepath = os.path.join(THUMBNAILS_DIR, filename)
+        
+        with open(filepath, "wb") as buffer:
+            buffer.write(file_bytes)
+            
+        db_path = f"/uploads/thumbnails/{filename}"
+        current_user.stream_thumbnail = db_path
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return {"success": True, "stream_thumbnail": db_path}
+        
+    except Exception as e:
+        import traceback
+        print("\n\n=== THUMBNAIL UPLOAD CRASH ===")
+        traceback.print_exc()
+        print("==============================\n\n")
+        raise HTTPException(status_code=500, detail=str(e))
