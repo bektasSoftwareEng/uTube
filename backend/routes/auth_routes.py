@@ -116,6 +116,8 @@ class UserResponse(BaseModel):
     subscriber_count: int = 0
     video_count: int = 0
     total_views: int = 0
+    is_live: bool = False
+    viewer_count: int = 0
     
     class Config:
         from_attributes = True
@@ -482,7 +484,9 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         created_at=user.created_at.isoformat(),
         subscriber_count=subscriber_count,
         video_count=video_count,
-        total_views=total_views
+        total_views=total_views,
+        is_live=user.is_live,
+        viewer_count=user.viewer_count
     )
 
 
@@ -968,3 +972,12 @@ def update_live_metadata(
         "stream_title": current_user.stream_title,
         "stream_category": current_user.stream_category
     }
+
+@router.get("/active-live-streams", response_model=list[UserResponse])
+def get_active_live_streams(db: Session = Depends(get_db)):
+    """
+    Get all users currently streaming live.
+    """
+    live_users = db.query(User).filter(User.is_live == True).all()
+    
+    return [build_user_response(user, db) for user in live_users]

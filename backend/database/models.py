@@ -46,6 +46,8 @@ class User(Base):
     profile_image = Column(String(255), nullable=True, default="default_avatar.png")
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
+    is_live = Column(Boolean, default=False, nullable=False, index=True)
+    viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
     channel_description = Column(Text, nullable=True)

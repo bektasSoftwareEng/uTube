@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebar } from '../context/SidebarContext';
 import { UTUBE_USER } from '../utils/authConstants';
 import ApiClient from '../utils/ApiClient';
-import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
-import { getBlockedChannelsData, unblockChannel } from './VideoGrid';
+import { getMediaUrl, getAvatarUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getBlockedChannelsData, unblockChannel, getBlockedVideosData, unblockVideo } from './VideoGrid';
 
 // ── Duration formatter ──
 const fmtDuration = (s) => {
@@ -83,17 +83,16 @@ const EmptyState = ({ label }) => (
 );
 
 // ── Video Item — mirrors VideoCard from VideoGrid ──
-const VideoItem = ({ video }) => {
+const VideoItem = ({ video, onAction, actionTitle }) => {
     const dur = fmtDuration(video.duration);
     return (
-        <Link
-            to={`/video/${video.id}`}
-            className="flex items-start gap-2.5 px-3 py-2 mx-1 rounded-xl hover:bg-white/[0.06] transition-colors group"
-        >
+        <div className="flex items-start gap-2.5 px-3 py-2 mx-1 rounded-xl hover:bg-white/[0.06] transition-colors group relative cursor-pointer">
+            <Link to={`/video/${video.id}`} className="absolute inset-0 z-0" />
+
             {/* Thumbnail with duration badge */}
-            <div className="relative w-[72px] aspect-video rounded-xl overflow-hidden shrink-0 ring-1 ring-white/5">
+            <div className="relative w-[72px] aspect-video rounded-xl overflow-hidden shrink-0 ring-1 ring-white/5 z-0">
                 <img
-                    src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                    src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                     alt={video.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={e => { e.target.src = THUMBNAIL_FALLBACK; }}
@@ -106,26 +105,45 @@ const VideoItem = ({ video }) => {
             </div>
 
             {/* Info */}
-            <div className="flex-1 min-w-0 py-0.5">
-                <p className="text-[11px] font-bold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                    {video.title}
-                </p>
-                <p className="text-[10px] text-white/40 mt-0.5 truncate hover:text-white/60 transition-colors">
-                    {video.author?.username || video.username}
-                </p>
-                <div className="flex items-center gap-1 text-[9px] text-white/25 mt-0.5">
-                    {video.view_count !== undefined && (
-                        <span>{(video.view_count || 0).toLocaleString()} views</span>
-                    )}
-                    {video.view_count !== undefined && video.upload_date && (
-                        <span>•</span>
-                    )}
-                    {video.upload_date && (
-                        <span>{timeAgo(video.upload_date)}</span>
-                    )}
+            <div className="flex-1 min-w-0 flex items-start gap-2 py-0.5 z-10 pointer-events-none">
+                <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                        {video.title}
+                    </p>
+                    <p className="text-[10px] text-white/40 mt-0.5 truncate hover:text-white/60 transition-colors">
+                        {video.author?.username || video.username}
+                    </p>
+                    <div className="flex items-center gap-1 text-[9px] text-white/25 mt-0.5">
+                        {video.view_count !== undefined && (
+                            <span>{(video.view_count || 0).toLocaleString()} views</span>
+                        )}
+                        {video.view_count !== undefined && video.upload_date && (
+                            <span>•</span>
+                        )}
+                        {video.upload_date && (
+                            <span>{timeAgo(video.upload_date)}</span>
+                        )}
+                    </div>
                 </div>
+
+                {/* Red accent arrow on hover acting as an action button */}
+                {onAction && (
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (video.id) onAction(video.id);
+                        }}
+                        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 text-primary/0 group-hover:text-primary transition-colors shrink-0 -mt-1 pointer-events-auto outline-none"
+                        title={actionTitle || "Action"}
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                    </button>
+                )}
             </div>
-        </Link>
+        </div>
     );
 };
 
@@ -201,6 +219,7 @@ const Sidebar = () => {
     const [history, setHistory] = useState([]);
     const [liked, setLiked] = useState([]);
     const [blocked, setBlocked] = useState([]);
+    const [blockedVideos, setBlockedVideos] = useState([]);
     const [loading, setLoading] = useState({ subs: false, history: false, liked: false, blocked: false });
 
     // Sync user with auth events
@@ -241,7 +260,7 @@ const Sidebar = () => {
 
     }, [isSidebarOpen, user]);
 
-    // Sync blocked channels from local storage and listen for block events
+    // Sync blocked channels and videos from local storage and listen for block events
     useEffect(() => {
         const syncBlocked = () => {
             const data = getBlockedChannelsData();
@@ -250,6 +269,8 @@ const Sidebar = () => {
                 if (typeof c === 'object') return { author: c };
                 return { author: { id: c, username: `ID: ${c}` } };
             }));
+
+            setBlockedVideos(getBlockedVideosData());
         };
 
         // Initial sync when sidebar opens/user changes
@@ -258,7 +279,11 @@ const Sidebar = () => {
         }
 
         window.addEventListener('utube_channel_blocked', syncBlocked);
-        return () => window.removeEventListener('utube_channel_blocked', syncBlocked);
+        window.addEventListener('utube_video_blocked', syncBlocked);
+        return () => {
+            window.removeEventListener('utube_channel_blocked', syncBlocked);
+            window.removeEventListener('utube_video_blocked', syncBlocked);
+        };
     }, [isSidebarOpen, user]);
 
     // Deduplicated subscription channels
@@ -296,11 +321,11 @@ const Sidebar = () => {
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: -260, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 340, damping: 36 }}
-                    className="fixed left-0 top-0 bottom-0 pt-16 sm:pt-20 w-60 z-40 flex flex-col border-r border-white/[0.06]"
+                    className="fixed left-0 top-0 bottom-0 pt-16 sm:pt-20 w-60 z-[60] flex flex-col border-r border-white/[0.06] shadow-[10px_0_30px_rgba(0,0,0,0.5)]"
                     style={{
-                        background: 'rgba(8, 8, 8, 0.92)',
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
+                        background: 'rgba(8, 8, 8, 0.95)',
+                        backdropFilter: 'blur(30px)',
+                        WebkitBackdropFilter: 'blur(30px)',
                     }}
                 >
                     {/* Top gradient accent — matches the site's red-black radial theme */}
@@ -386,6 +411,46 @@ const Sidebar = () => {
                             liked.map(v => <VideoItem key={v.id} video={v} />)
                         ) : (
                             <EmptyState label="No liked videos yet" />
+                        )}
+
+                        <Divider />
+
+                        {/* ── Blocked Videos ── */}
+                        <SectionHeader
+                            icon={
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                            }
+                            title="Not interested"
+                            tag="History"
+                        />
+
+                        {!user ? (
+                            <SignInPlaceholder label="Sign in to view" />
+                        ) : (
+                            <Link
+                                to="/blocked"
+                                className="flex items-center gap-3 px-4 py-2 mx-1 rounded-xl hover:bg-white/[0.06] transition-colors group"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center shrink-0">
+                                    <svg className="w-4 h-4 text-white/40 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[11px] font-bold text-white/70 group-hover:text-white transition-colors">Manage Hidden Videos</p>
+                                    {blockedVideos.length > 0 && (
+                                        <p className="text-[9px] text-white/40">{blockedVideos.length} videos</p>
+                                    )}
+                                </div>
+                                <svg
+                                    className="w-3 h-3 text-white/0 group-hover:text-white/40 transition-colors shrink-0"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </Link>
                         )}
 
                         <Divider />

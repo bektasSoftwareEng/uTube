@@ -51,10 +51,11 @@ export const getAvatarUrl = (path, username) => {
 
     // If it's just a filename (no slashes), assume it's in the uploads/avatars directory
     if (!path.startsWith('http') && !path.includes('/')) {
-        return getValidUrl(`/uploads/avatars/${path}`, fallback);
+        const mediaPath = `/uploads/avatars/${path}`;
+        return getMediaUrl(mediaPath) || fallback;
     }
 
-    return getValidUrl(path, fallback);
+    return getMediaUrl(path) || fallback;
 };
 
 /**

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
@@ -12,6 +12,7 @@ import EditProfile from './pages/EditProfile'
 import LiveStudio from './pages/LiveStudio'
 import WatchPage from './pages/WatchPage';
 import Dashboard from './pages/Dashboard';
+import BlockedVideos from './pages/BlockedVideos';
 import MyChannel from './pages/MyChannel';
 import { UTUBE_TOKEN } from './utils/authConstants'
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
@@ -22,7 +23,34 @@ const ProtectedRoute = ({ children }) => {
     return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
-// Inner layout that can read sidebar state
+// Floating Sidebar Trigger
+const SidebarHoverTrigger = () => {
+    const { handleSidebarEnter } = useSidebar();
+    const location = useLocation();
+
+    if (location.pathname !== '/') {
+        return null;
+    }
+
+    return (
+        <div
+            onMouseEnter={handleSidebarEnter}
+            className="fixed left-0 top-1/2 -translate-y-1/2 w-8 h-24 z-50 flex items-center justify-start cursor-pointer drop-shadow-[2px_0_4px_rgba(0,0,0,0.8)]"
+        >
+            <div className="w-5 h-14 flex items-center justify-center">
+                <svg
+                    className="w-6 h-6 text-red-500"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    style={{ transform: 'rotate(90deg)' }}
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" />
+                </svg>
+            </div>
+        </div>
+    );
+};
+
+// Inner layout that can render sidebar state
 const AppLayout = () => {
     const { isSidebarOpen } = useSidebar();
     return (
@@ -44,13 +72,9 @@ const AppLayout = () => {
                 }}
             />
             <Navbar />
+            <SidebarHoverTrigger />
             <Sidebar />
-            <main
-                style={{
-                    marginLeft: isSidebarOpen ? '240px' : '0px',
-                    transition: 'margin-left 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
-                }}
-            >
+            <main>
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/video/:id" element={<VideoDetail />} />
@@ -64,6 +88,7 @@ const AppLayout = () => {
                     <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
                     <Route path="/live" element={<ProtectedRoute><LiveStudio /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/blocked" element={<ProtectedRoute><BlockedVideos /></ProtectedRoute>} />
                     <Route path="/channel/:username" element={<ProtectedRoute><MyChannel /></ProtectedRoute>} />
                 </Routes>
             </main>

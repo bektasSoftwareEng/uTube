@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getAvatarUrl, getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_TOKEN, UTUBE_USER } from '../utils/authConstants';
 import ApiClient from '../utils/ApiClient';
 import { useSidebar } from '../context/SidebarContext';
 
 
 const Navbar = () => {
-    const { isSidebarOpen, toggleSidebar, handleSidebarEnter, handleSidebarLeave } = useSidebar();
     // Read from disk during initialization
     const [user, setUser] = useState(() => {
         try {
@@ -168,44 +167,8 @@ const Navbar = () => {
     return (
         <nav className="absolute top-0 left-0 right-0 z-50 glass border-b border-white/5 h-16 sm:h-20 flex items-center px-4 sm:px-8">
             <div className="flex items-center justify-between w-full max-w-[1800px] mx-auto">
-                {/* Logo + Hamburger Section */}
+                {/* Logo Section */}
                 <div className="flex items-center gap-3 sm:gap-5">
-                    {/* Hamburger toggle */}
-                    <motion.button
-                        onClick={toggleSidebar}
-                        onMouseEnter={handleSidebarEnter}
-                        onMouseLeave={handleSidebarLeave}
-                        whileTap={{ scale: 0.88 }}
-                        className="relative w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-xl hover:bg-white/8 transition-colors shrink-0"
-                        title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-                        aria-label="Toggle sidebar"
-                    >
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { rotate: 45, y: 6, width: '18px' }
-                                : { rotate: 0, y: 0, width: '18px' }}
-                            transition={{ duration: 0.22 }}
-                            className="block h-[2px] bg-white/80 rounded-full origin-center"
-                            style={{ width: 18 }}
-                        />
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { opacity: 0, scaleX: 0 }
-                                : { opacity: 1, scaleX: 1 }}
-                            transition={{ duration: 0.18 }}
-                            className="block h-[2px] bg-white/80 rounded-full"
-                            style={{ width: 14 }}
-                        />
-                        <motion.span
-                            animate={isSidebarOpen
-                                ? { rotate: -45, y: -6, width: '18px' }
-                                : { rotate: 0, y: 0, width: '12px' }}
-                            transition={{ duration: 0.22 }}
-                            className="block h-[2px] bg-white/80 rounded-full origin-center"
-                            style={{ width: 12 }}
-                        />
-                    </motion.button>
-
                     <Link to="/" className="flex items-center gap-2 group">
                         <motion.div
                             whileHover={{ rotate: -10, scale: 1.1 }}
@@ -339,7 +302,7 @@ const Navbar = () => {
                                                                 {/* Thumbnail */}
                                                                 <div className="w-28 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
                                                                     <img
-                                                                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                                         alt={video.title}
                                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                                                         onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}

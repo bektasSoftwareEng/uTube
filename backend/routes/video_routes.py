@@ -77,6 +77,7 @@ class VideoListResponse(BaseModel):
     """Response model for video list."""
     id: int
     title: str
+    video_url: str
     thumbnail_url: str
     view_count: int
     upload_date: str
@@ -377,6 +378,7 @@ def get_all_videos(
         VideoListResponse(
             id=video.id,
             title=video.title,
+            video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
             upload_date=video.upload_date.isoformat(),
@@ -483,6 +485,7 @@ def semantic_search(
         VideoListResponse(
             id=video.id,
             title=video.title,
+            video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
             upload_date=video.upload_date.isoformat(),
@@ -728,6 +731,7 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
         VideoListResponse(
             id=video.id,
             title=video.title,
+            video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
             upload_date=video.upload_date.isoformat(),

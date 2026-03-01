@@ -3,12 +3,35 @@ import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import ApiClient from '../utils/ApiClient';
-import { VideoCard } from '../components/VideoGrid';
+import { VideoCard, VideoMenu, getBlockedChannels, getBlockedVideosData } from '../components/VideoGrid';
 import VideoPlayer from '../components/VideoPlayer';
-import { getValidUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
+import HoverVideoPreview from '../components/HoverVideoPreview';
+import { getMediaUrl, getAvatarUrl, THUMBNAIL_FALLBACK, AVATAR_FALLBACK, VIDEO_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_USER } from '../utils/authConstants';
 
 
+
+const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return `${m} minutes ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} hours ago`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d} days ago`;
+    if (d < 30) return `${Math.floor(d / 7)} weeks ago`;
+    if (d < 365) return `${Math.floor(d / 30)} months ago`;
+    return `${Math.floor(d / 365)} years ago`;
+};
+
+const fmtViews = (n) => {
+    if (!n && n !== 0) return '0';
+    if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1)).toString()}M`;
+    if (n >= 1_000) return `${Number((n / 1_000).toFixed(1)).toString()}K`;
+    return n.toString();
+};
 
 const SidebarSkeleton = () => (
     <div className="space-y-4">
@@ -31,6 +54,8 @@ const VideoDetail = () => {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
     const [recLoading, setRecLoading] = useState(false);
+    const [hoveredRec, setHoveredRec] = useState(null);
+    const hoverRecTimeout = useRef(null);
 
     const viewTracked = useRef(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
@@ -81,8 +106,22 @@ const VideoDetail = () => {
                         limit: 10
                     }
                 });
-                // Double-safety: Filter on frontend too
-                const validRecs = recResponse.data.filter(v => v.status === 'published');
+
+                // Get blocked items from LocalStorage and SessionStorage
+                const blockedChannelsSet = new Set(getBlockedChannels());
+
+                // For videos, if they are blocked totally but not this session, hide them completely.
+                // If they are session blocked, we could blur them, but for sidebar we'll just hide them directly to be clean.
+                const blockedVideos = getBlockedVideosData();
+
+                // Double-safety: Filter on frontend too (status AND block lists)
+                const validRecs = recResponse.data.filter(v => {
+                    if (v.status !== 'published') return false;
+                    if (blockedChannelsSet.has(v.author?.id)) return false;
+                    if (blockedVideos.some(bv => bv.id === v.id)) return false;
+                    return true;
+                });
+
                 setRecommendations(validRecs);
             } catch (error) {
                 console.error('Failed to fetch recommendations:', error);
@@ -212,6 +251,31 @@ const VideoDetail = () => {
             checkSubscription();
         }
     }, [video]);
+
+    // ══════════════════════════════════════════════════
+    // Listen for Block Events 
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        const handleBlockEvent = () => {
+            // Re-filter recommendations if a block event occurs
+            const blockedChannelsSet = new Set(getBlockedChannels());
+            const blockedVideos = getBlockedVideosData();
+
+            setRecommendations(prev => prev.filter(v => {
+                if (blockedChannelsSet.has(v.author?.id)) return false;
+                if (blockedVideos.some(bv => bv.id === v.id)) return false;
+                return true;
+            }));
+        };
+
+        window.addEventListener('utube_channel_blocked', handleBlockEvent);
+        window.addEventListener('utube_video_blocked', handleBlockEvent);
+
+        return () => {
+            window.removeEventListener('utube_channel_blocked', handleBlockEvent);
+            window.removeEventListener('utube_video_blocked', handleBlockEvent);
+        };
+    }, []);
 
     // ══════════════════════════════════════════════════
     // Handlers
@@ -436,7 +500,7 @@ const VideoDetail = () => {
 
     // Fail-Safe Playback: Priority to real backend URL, fallback to rotating test clips
     const videoSrc = (video.video_url && video.video_url !== "" && !video.video_url.includes('synthetic'))
-        ? getValidUrl(video.video_url, DYNAMIC_FALLBACK)
+        ? getMediaUrl(video.video_url)
         : DYNAMIC_FALLBACK;
 
 
@@ -445,17 +509,17 @@ const VideoDetail = () => {
             key={id}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="pt-24 pb-12 px-4 md:px-8 max-w-[1700px] mx-auto"
+            className="pt-24 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto"
         >
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Main Content (75% Width) */}
-                <div className="lg:col-span-3">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Main Content (66% Width) */}
+                <div className="lg:col-span-8">
                     {/* Video Player */}
                     <div className="mb-6">
                         <VideoPlayer
                             src={videoSrc}
-                            poster={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                            poster={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                             onError={(e) => {
                                 if (e.target.src !== DYNAMIC_FALLBACK) {
                                     e.target.src = DYNAMIC_FALLBACK;
@@ -824,8 +888,8 @@ const VideoDetail = () => {
                     </div>
                 </div>
 
-                {/* Sidebar Section (25% Width) */}
-                <div className="lg:col-span-1">
+                {/* Sidebar Section (33% Width) */}
+                <div className="lg:col-span-4">
                     <h2 className="font-bold mb-6 text-lg tracking-tight flex items-center gap-2">
                         <span className="w-1 h-6 bg-primary rounded-full" />
                         Up Next
@@ -837,28 +901,74 @@ const VideoDetail = () => {
                         ) : recommendations.length > 0 ? (
                             recommendations.map((rec) => (
                                 rec.status === 'published' && (
-                                    <div key={rec.id} className="cursor-pointer group">
-                                        <Link to={`/video/${rec.id}`} className="flex gap-3">
-                                            <div className="w-32 xl:w-40 aspect-video rounded-lg overflow-hidden shrink-0 ring-1 ring-white/5">
+                                    <div
+                                        key={rec.id}
+                                        className="cursor-pointer group relative"
+                                        onMouseEnter={() => {
+                                            hoverRecTimeout.current = setTimeout(() => {
+                                                setHoveredRec(rec.id);
+                                            }, 1000);
+                                        }}
+                                        onMouseLeave={() => {
+                                            if (hoverRecTimeout.current) clearTimeout(hoverRecTimeout.current);
+                                            setHoveredRec(null);
+                                        }}
+                                    >
+                                        <Link to={`/video/${rec.id}`} className="flex gap-2 relative z-0 group-hover:z-10 rounded-xl pr-2 transition-colors group-hover:bg-white/5">
+                                            <div className="w-[168px] aspect-video rounded-xl overflow-hidden shrink-0 relative transition-transform duration-500 group-hover:scale-105 group-hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] bg-neutral-900/50">
                                                 <img
-                                                    src={getValidUrl(rec.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                    src={getMediaUrl(rec.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                     alt={rec.title}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                                    className="w-full h-full object-cover"
                                                     onError={(e) => {
                                                         e.target.src = THUMBNAIL_FALLBACK;
                                                     }}
                                                 />
+
+                                                {/* Hover Preview Overlay */}
+                                                {(hoveredRec === rec.id) && (
+                                                    <div className="absolute inset-0 z-20 pointer-events-none bg-black">
+                                                        <AnimatePresence>
+                                                            <motion.div
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                exit={{ opacity: 0 }}
+                                                                transition={{ duration: 0.3 }}
+                                                                className="w-full h-full"
+                                                            >
+                                                                <HoverVideoPreview video={rec} isGridMode={true} />
+                                                            </motion.div>
+                                                        </AnimatePresence>
+                                                    </div>
+                                                )}
+
+                                                {!(hoveredRec === rec.id) && rec.duration && (
+                                                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[10px] font-bold px-1 rounded z-10">
+                                                        {Math.floor(rec.duration / 60)}:{(rec.duration % 60).toString().padStart(2, '0')}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-xs xl:text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                                            <div className="flex-1 min-w-0 pr-2 py-1 flex flex-col justify-start">
+                                                <h3 className="font-bold text-sm leading-tight text-white line-clamp-2 mb-1 pr-4">
                                                     {rec.title}
                                                 </h3>
-                                                <p className="text-white/40 text-[10px] xl:text-[11px] mt-1 hover:text-white/60 transition-colors truncate">
+                                                <p className="text-[#AAAAAA] text-xs hover:text-white transition-colors truncate">
                                                     {rec.author?.username}
                                                 </p>
-                                                <p className="text-white/40 text-[10px] xl:text-[11px]">
-                                                    {rec.view_count.toLocaleString()} views
+                                                <p className="text-[#AAAAAA] text-xs">
+                                                    {fmtViews(rec.view_count)} views • {timeAgo(rec.upload_date || rec.created_at)}
                                                 </p>
+                                            </div>
+                                            <div
+                                                className="absolute top-0 right-0 p-1 text-white hover:text-white/80 transition-colors z-20"
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                            >
+                                                <VideoMenu
+                                                    video={rec}
+                                                    onHide={(type, id) => {
+                                                        setRecommendations(prev => prev.filter(r => r.id !== rec.id));
+                                                    }}
+                                                />
                                             </div>
                                         </Link>
                                     </div>
