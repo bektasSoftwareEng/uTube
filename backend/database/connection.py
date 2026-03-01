@@ -154,7 +154,11 @@ def run_schema_migrations():
             user_columns = [
                 ("stream_key", "VARCHAR(100)"),
                 ("stream_title", "VARCHAR(100)"),
-                ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'")
+                ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'"),
+                ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
+                ("verification_code", "VARCHAR(6)"),
+                ("verification_expires_at", "DATETIME"),
+                ("pending_email", "VARCHAR(100)")
             ]
             
             for col_name, col_def in user_columns:

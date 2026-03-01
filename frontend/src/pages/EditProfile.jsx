@@ -25,6 +25,8 @@ const EditProfile = () => {
 
     const [profileImage, setProfileImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
+    const [verificationStep, setVerificationStep] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
 
     const safeProfilePreview = useMemo(() => {
         const rawUrl = imagePreview || (user ? getAvatarUrl(user.profile_image, user.username) : '');
@@ -95,6 +97,13 @@ const EditProfile = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
+            if (response.data.status === 'verification_required') {
+                setVerificationStep(true);
+                setSuccess("Check your new email inbox. We've sent a 6-digit verification code to confirm the change.");
+                setLoading(false);
+                return;
+            }
+
             // Update local storage with new user data
             const updatedUser = response.data;
             localStorage.setItem(UTUBE_USER, JSON.stringify(updatedUser));
@@ -108,6 +117,33 @@ const EditProfile = () => {
             console.error(err);
             const errorMsg = err.response?.data?.detail || "Failed to update profile";
             setError(errorMsg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleVerifyEmail = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setSuccess(null);
+        setLoading(true);
+
+        try {
+            const response = await ApiClient.post('/auth/verify-email-change', {
+                code: verificationCode
+            });
+
+            // Update local storage and context with verified user data
+            const updatedUser = response.data;
+            localStorage.setItem(UTUBE_USER, JSON.stringify(updatedUser));
+            setUser(updatedUser);
+            window.dispatchEvent(new Event('authChange'));
+
+            setSuccess("Email successfully verified and updated!");
+            setTimeout(() => navigate('/profile'), 1500);
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.detail || "Invalid or expired verification code.");
         } finally {
             setLoading(false);
         }
@@ -140,108 +176,166 @@ const EditProfile = () => {
                     )}
                 </AnimatePresence>
 
-                <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+                {!verificationStep ? (
+                    <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
 
-                    {/* Profile Picture Upload */}
-                    <div className="flex flex-col items-center gap-4 mb-8">
-                        <div className="relative group cursor-pointer">
-                            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/10 bg-black shadow-xl group-hover:border-white/30 transition-colors">
-                                {safeProfilePreview && (
-                                    <img
-                                        src={safeProfilePreview}
-                                        alt="Profile"
-                                        className="w-full h-full object-cover"
+                        {/* Profile Picture Upload */}
+                        <div className="flex flex-col items-center gap-4 mb-8">
+                            <div className="relative group cursor-pointer">
+                                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/10 bg-black shadow-xl group-hover:border-white/30 transition-colors">
+                                    {safeProfilePreview && (
+                                        <img
+                                            src={safeProfilePreview}
+                                            alt="Profile"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    )}
+                                </div>
+                                <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer">
+                                    <span className="text-xs font-bold uppercase tracking-wider">Change</span>
+                                    <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                                </label>
+                            </div>
+                            <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Profile Picture</p>
+                        </div>
+
+                        {/* Inputs */}
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Username</label>
+                                <input
+                                    type="text"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t border-white/10">
+                            <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">New Password (Optional)</label>
+                            <input
+                                type="password"
+                                value={formData.password}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                placeholder="Leave blank to keep current password"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                            />
+                        </div>
+
+                        {formData.password && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Current Password</label>
+                                    <input
+                                        type="password"
+                                        value={formData.currentPassword}
+                                        onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                        required
                                     />
-                                )}
+                                    <p className="text-xs text-white/40 ml-1">Required to confirm password change</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Confirm New Password</label>
+                                    <input
+                                        type="password"
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                        required
+                                    />
+                                </div>
                             </div>
-                            <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer">
-                                <span className="text-xs font-bold uppercase tracking-wider">Change</span>
-                                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-                            </label>
-                        </div>
-                        <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Profile Picture</p>
-                    </div>
+                        )}
 
-                    {/* Inputs */}
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Username</label>
-                            <input
-                                type="text"
-                                value={formData.username}
-                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
-                                required
-                            />
+                        <div className="flex gap-4 pt-6">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/profile')}
+                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 py-3 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/80 hover:to-purple-600/80 text-white font-bold rounded-xl shadow-lg transform active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Saving..." : "Save Changes"}
+                            </button>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Email</label>
-                            <input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
-                                required
-                            />
-                        </div>
-                    </div>
 
-                    <div className="space-y-2 pt-4 border-t border-white/10">
-                        <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">New Password (Optional)</label>
-                        <input
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            placeholder="Leave blank to keep current password"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
-                        />
-                    </div>
-
-                    {formData.password && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Current Password</label>
-                                <input
-                                    type="password"
-                                    value={formData.currentPassword}
-                                    onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
-                                    required
-                                />
-                                <p className="text-xs text-white/40 ml-1">Required to confirm password change</p>
+                    </form>
+                ) : (
+                    <motion.form
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        onSubmit={handleVerifyEmail}
+                        className="space-y-6 relative z-10"
+                    >
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/50">
+                                <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
                             </div>
+                            <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
+                            <p className="text-white/60 text-sm">
+                                We've sent a 6-digit verification code to <span className="text-white font-bold">{formData.email}</span>
+                            </p>
+                        </div>
 
+                        <div className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Confirm New Password</label>
+                                <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">6-Digit Code</label>
                                 <input
-                                    type="password"
-                                    value={formData.confirmPassword}
-                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                    type="text"
+                                    maxLength="6"
+                                    value={verificationCode}
+                                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="000000"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-mono text-center text-3xl tracking-[1em]"
                                     required
                                 />
                             </div>
                         </div>
-                    )}
 
-                    <div className="flex gap-4 pt-6">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/profile')}
-                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-1 py-3 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/80 hover:to-purple-600/80 text-white font-bold rounded-xl shadow-lg transform active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? "Saving..." : "Save Changes"}
-                        </button>
-                    </div>
-
-                </form>
+                        <div className="flex gap-4 pt-6">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setVerificationStep(false);
+                                    setVerificationCode('');
+                                    setError(null);
+                                    setSuccess(null);
+                                }}
+                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
+                            >
+                                Back
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading || verificationCode.length !== 6}
+                                className="flex-1 py-3 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/80 hover:to-purple-600/80 text-white font-bold rounded-xl shadow-lg transform active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Verifying..." : "Confirm Email"}
+                            </button>
+                        </div>
+                    </motion.form>
+                )}
             </motion.div>
         </div>
     );

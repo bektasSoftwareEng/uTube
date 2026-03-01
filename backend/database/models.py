@@ -50,7 +50,15 @@ class User(Base):
     viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
+    channel_description = Column(Text, nullable=True)
+    channel_banner_url = Column(String(255), nullable=True)
     
+    # Email Verification
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verification_code = Column(String(6), nullable=True)
+    verification_expires_at = Column(DateTime, nullable=True)
+    pending_email = Column(String(100), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
+import { FLV_BASE_URL } from '../utils/urlHelper';
 import { toast } from 'react-hot-toast';
 import flvjs from 'flv.js';
 
@@ -25,7 +26,7 @@ const WatchPage = () => {
     useEffect(() => {
         // Initialize Player
         if (flvjs.isSupported()) {
-            const url = `http://127.0.0.1:8080/live/${username}.flv`;
+            const url = `${FLV_BASE_URL}/${username}.flv`;
             const player = flvjs.createPlayer({
                 type: 'flv',
                 url: url,
