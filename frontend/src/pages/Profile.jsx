@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
-import { getAvatarUrl, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getAvatarUrl, getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import ApiClient from '../utils/ApiClient';
 
 const Profile = () => {
@@ -178,7 +178,7 @@ const Profile = () => {
                                     >
                                         <div className="aspect-video bg-black rounded-lg overflow-hidden mb-2">
                                             <img
-                                                src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                 alt={video.title}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}

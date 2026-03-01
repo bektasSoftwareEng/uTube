@@ -1,0 +1,19 @@
+[
+    {
+        "type": "missing",
+        "loc": [
+            "video_url"
+        ],
+        "msg": "Field required",
+        "input": {
+            "id": 2,
+            "title": "DENEME DENEME DENEMEEEEEEEEEEE",
+            "thumbnail_url": "/storage/uploads/thumbnails/video_2_custom_1772202253.jpg",
+            "view_count": 1,
+            "upload_date": "2026-02-27T14:23:57.637210",
+            "duration": 28,
+            "category": "Technology",
+            "like_count": 0,
+            "status": "published",
+            "visibility": "public",
+            "author": 

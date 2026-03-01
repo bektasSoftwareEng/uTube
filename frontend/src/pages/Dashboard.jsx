@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_USER } from '../utils/authConstants';
-import { getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
+import { getMediaUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 
 // ─── Mini bar chart component ──────────────────────────────────────────────
 const MiniBar = ({ value, max, color = 'var(--gold)' }) => {
@@ -274,7 +274,7 @@ const Dashboard = () => {
                                             <Link to={`/video/${video.id}`} className="flex items-center gap-3">
                                                 <div className="w-20 aspect-video rounded-lg overflow-hidden shrink-0 bg-black ring-1 ring-white/5">
                                                     <img
-                                                        src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
+                                                        src={getMediaUrl(video.thumbnail_url) || THUMBNAIL_FALLBACK}
                                                         alt={video.title}
                                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                         onError={(e) => { e.target.src = THUMBNAIL_FALLBACK; }}
