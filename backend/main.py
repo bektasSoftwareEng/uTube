@@ -100,6 +100,7 @@ STORAGE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "st
 os.makedirs(STORAGE_PATH, exist_ok=True)
 os.makedirs(os.path.join(STORAGE_PATH, "uploads", "thumbnails"), exist_ok=True)
 os.makedirs(os.path.join(STORAGE_PATH, "backgrounds"), exist_ok=True)
+os.makedirs(os.path.join(STORAGE_PATH, "uploads", "banners"), exist_ok=True)
 
 # Mount with absolute path to /storage
 app.mount("/storage", StaticFiles(directory=STORAGE_PATH), name="storage")
