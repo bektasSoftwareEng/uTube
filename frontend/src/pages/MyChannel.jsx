@@ -106,6 +106,8 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
     const [bannerFile, setBannerFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [saving, setSaving] = useState(false);
+    const [confirmRemove, setConfirmRemove] = useState(false);
+    const [removing, setRemoving] = useState(false);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -143,8 +145,25 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
 
     // Use current banner URL or fallback if no live preview
     const currentBannerUrl = user?.channel_banner_url
-        ? getValidUrl(`/uploads/banners/${user.channel_banner_url}`)
+        ? getValidUrl(`/storage/uploads/banners/${user.channel_banner_url}`)
         : null;
+
+    const handleRemoveBanner = async () => {
+        setRemoving(true);
+        try {
+            const res = await ApiClient.delete('/auth/me/banner');
+            localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+            window.dispatchEvent(new Event('authChange'));
+            toast.success('Banner removed!');
+            onSaved(res.data);
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove banner');
+        } finally {
+            setRemoving(false);
+            setConfirmRemove(false);
+        }
+    };
 
     return (
         <motion.div
@@ -178,6 +197,7 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                                     src={DOMPurify.sanitize(previewUrl || currentBannerUrl)}
                                     alt="Banner Preview"
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity"
+                                    onError={(e) => { e.target.style.display = 'none'; }}
                                 />
                             ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 group-hover:text-white/70 transition-colors">
@@ -206,6 +226,42 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                             )}
                         </div>
                         <p className="text-[10px] text-white/40 mt-1.5 ml-1">JPEG, PNG or WEBP. At least 1024x288px recommended.</p>
+                        {/* Remove Banner Button */}
+                        {user?.channel_banner_url && !previewUrl && (
+                            <div className="mt-2">
+                                {!confirmRemove ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConfirmRemove(true)}
+                                        className="flex items-center gap-1.5 text-xs font-bold text-red-400/70 hover:text-red-400 transition-colors ml-1"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Remove Banner
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                                        <span className="text-xs text-red-300 font-medium">Remove banner?</span>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveBanner}
+                                            disabled={removing}
+                                            className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                                        >
+                                            {removing ? 'Removing...' : 'Yes'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmRemove(false)}
+                                            className="text-xs font-bold text-white/50 hover:text-white/70 transition-colors"
+                                        >
+                                            No
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Description Textarea */}
@@ -488,9 +544,10 @@ const MyChannel = () => {
                     <div className="h-40 md:h-64 bg-gradient-to-r from-primary/30 via-purple-600/20 to-primary/10 relative">
                         {user.channel_banner_url ? (
                             <img
-                                src={DOMPurify.sanitize(getValidUrl(`/uploads/banners/${user.channel_banner_url}`))}
+                                src={DOMPurify.sanitize(getValidUrl(`/storage/uploads/banners/${user.channel_banner_url}`))}
                                 alt={`${user.username}'s banner`}
                                 className="w-full h-full object-cover"
+                                onError={(e) => { e.target.style.display = 'none'; }}
                             />
                         ) : (
                             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZykiLz48L3N2Zz4=')] opacity-50" />
