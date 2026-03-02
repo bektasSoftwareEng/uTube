@@ -93,21 +93,19 @@ app.add_middleware(
 )
 
 # Mount static files securely using explicit absolute path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STORAGE_PATH = os.path.join(BASE_DIR, "backend", "storage")
+# We use /storage as the URL prefix to match urlHelper.js and config.py logic
+STORAGE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "storage"))
 
 # Critical: Ensure directories exist before mounting
-os.makedirs(os.path.join(STORAGE_PATH, "thumbnails"), exist_ok=True)
+os.makedirs(STORAGE_PATH, exist_ok=True)
+os.makedirs(os.path.join(STORAGE_PATH, "uploads", "thumbnails"), exist_ok=True)
 os.makedirs(os.path.join(STORAGE_PATH, "backgrounds"), exist_ok=True)
 
-# Mount with absolute path
-app.mount("/uploads", StaticFiles(directory=STORAGE_PATH), name="uploads")
+# Mount with absolute path to /storage
+app.mount("/storage", StaticFiles(directory=STORAGE_PATH), name="storage")
 
 # DEBUG PRINT to terminal
-print(f"--- MOUNT SUCCESS: Serving files from {STORAGE_PATH} at /uploads ---")
-
-# /storage for local dev files
-app.mount("/storage", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "storage")), name="storage")
+print(f"--- MOUNT SUCCESS: Serving files from {STORAGE_PATH} at /storage ---")
 
 # Include routers
 app.include_router(auth_router, prefix=API_PREFIX)

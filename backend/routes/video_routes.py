@@ -19,7 +19,11 @@ from datetime import datetime
 import os
 import shutil
 import json
+import logging
 from pathlib import Path
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 from backend.database import get_db
 from backend.database.models import User, Video
@@ -50,7 +54,7 @@ class AuthorResponse(BaseModel):
     """Response model for user/author information."""
     id: int
     username: str
-    profile_image: Optional[str] = "default_avatar.png"
+    profile_image: Optional[str] = None
     video_count: Optional[int] = 0
 
     class Config:
@@ -62,8 +66,8 @@ class VideoUploadResponse(BaseModel):
     id: int
     title: str
     description: Optional[str] = None
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     author: AuthorResponse
@@ -77,8 +81,8 @@ class VideoListResponse(BaseModel):
     """Response model for video list."""
     id: int
     title: str
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     author: AuthorResponse
@@ -102,8 +106,8 @@ class VideoResponse(BaseModel):
     tags: List[str] = []  # Phase 5: Recommendation-ready JSON tags
     visibility: str = "public"  # Phase 5: Access control
     scheduled_at: Optional[str] = None  # Phase 5: ISO 8601 datetime
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     duration: Optional[int] = None
@@ -120,21 +124,22 @@ class VideoResponse(BaseModel):
 
 def get_video_url(filename: str, is_temp: bool = False) -> str:
     """Generate full URL for video file."""
+    if not filename: return None
     if is_temp:
-        return f"/uploads/temp/{filename}"
-    return f"/uploads/videos/{filename}"
+        return f"/storage/temp/{filename}"
+    return f"/storage/uploads/videos/{filename}"
 
 
 def get_thumbnail_url(filename: str) -> str:
     """Generate full URL for thumbnail file."""
-    if not filename or filename == "default_thumbnail.png":
-        return "/uploads/thumbnails/default_thumbnail.png"
-    return f"/uploads/thumbnails/{filename}"
+    if not filename: return None
+    return f"/storage/uploads/thumbnails/{filename}"
 
 
 def get_preview_url(filename: str) -> str:
     """Generate full URL for preview frame."""
-    return f"/uploads/previews/{filename}"
+    if not filename: return None
+    return f"/storage/uploads/previews/{filename}"
 
 def parse_tags(tags_val: Union[str, List, None]) -> List[str]:
     """Safely parse tags from DB (which might be JSON string) to List."""
@@ -205,6 +210,8 @@ async def upload_video(
 ):
     video_path = None
     thumbnail_path = None
+    thumbnail_filename = None
+    thumbnail_success = False
     
     try:
         print(f"[UPLOAD] Starting video upload for user {current_user.username} - Title: {title}")
@@ -246,10 +253,10 @@ async def upload_video(
             os.makedirs(thumbnail_path.parent, exist_ok=True)
             with open(thumbnail_path, "wb") as buffer:
                 shutil.copyfileobj(thumbnail_file.file, buffer)
+            thumbnail_success = True
         else:
-            thumbnail_success = generate_thumbnail(str(video_path), str(thumbnail_path), timestamp=1.0)
-            if not thumbnail_success:
-                thumbnail_filename = "default_thumbnail.png"
+            # We will generate it from the video later
+            thumbnail_success = False
         
         # Extract metadata
         metadata = get_video_metadata(str(video_path))
@@ -308,23 +315,37 @@ async def upload_video(
         db.add(new_video)
         db.commit()
         db.refresh(new_video)
-        
-        background_tasks.add_task(
-            generate_preview_frames,
-            str(video_path),
-            str(PREVIEWS_DIR),
-            new_video.id,
-            3
+        # 1. Generate the 3 high-quality preview frames for the interactive picker
+        preview_frames = generate_preview_frames(
+            str(video_path), 
+            str(PREVIEWS_DIR), 
+            new_video.id
         )
         
-        preview_frames_urls = [get_preview_url(f"video_{new_video.id}_preview_{i}.jpg") for i in range(1, 4)]
+        # 2. Extract first frame as temporary thumbnail if one wasn't uploaded
+        if not thumbnail_success:
+            thumb_filename = f"thumb_{new_video.id}.jpg"
+            thumb_path = THUMBNAILS_DIR / thumb_filename
+            
+            # Generate thumbnail at 1.0s mark
+            thumbnail_success = generate_thumbnail(str(video_path), str(thumb_path), timestamp=1.0)
+            
+            if thumbnail_success:
+                new_video.thumbnail_filename = thumb_filename
+                db.add(new_video)
+                db.commit()
+                logger.info(f"Initial thumbnail generated for video {new_video.id}")
+            else:
+                logger.error(f"Failed to generate initial thumbnail for video {new_video.id}")
+            
+        preview_frames_urls = [get_preview_url(f) for f in preview_frames]
         
         return VideoUploadResponse(
             id=new_video.id,
             title=new_video.title,
             description=new_video.description,
             video_url=get_video_url(video_filename, is_temp=True),
-            thumbnail_url=get_thumbnail_url(thumbnail_filename),
+            thumbnail_url=get_thumbnail_url(new_video.thumbnail_filename),
             view_count=new_video.view_count,
             upload_date=new_video.upload_date.isoformat(),
             preview_frames=preview_frames_urls,
@@ -337,13 +358,14 @@ async def upload_video(
         )
         
     except HTTPException:
-        if video_path and video_path.exists(): cleanup_file(str(video_path))
-        if thumbnail_path and thumbnail_filename != "default_thumbnail.png" and thumbnail_path.exists(): cleanup_file(str(thumbnail_path))
+        if video_path and os.path.exists(video_path): cleanup_file(str(video_path))
+        if thumbnail_path and thumbnail_filename and os.path.exists(thumbnail_path): cleanup_file(str(thumbnail_path))
         raise
     except Exception as e:
-        if video_path and video_path.exists(): cleanup_file(str(video_path))
-        if thumbnail_path and thumbnail_filename != "default_thumbnail.png" and thumbnail_path.exists(): cleanup_file(str(thumbnail_path))
+        if video_path and os.path.exists(video_path): cleanup_file(str(video_path))
+        if thumbnail_path and thumbnail_filename and os.path.exists(thumbnail_path): cleanup_file(str(thumbnail_path))
         print(f"[UPLOAD ERROR] {e}")
+        logger.exception("Video upload failed")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {str(e)}")
 
 

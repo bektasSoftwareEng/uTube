@@ -12,31 +12,29 @@ Endpoints:
 """
 
 from jose import JWTError
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Request
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Body
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import datetime
 from typing import Optional, Union
+from datetime import datetime, timedelta
 import shutil
 import os
 from pathlib import Path
 import uuid
 import random
 import string
-from datetime import datetime, timedelta
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 from backend.database import get_db
 from backend.database.models import User, Subscription, Video, StreamLike, ActivityLog
 from backend.chat.manager import manager
-from backend.services.mail_service import mail_service
-from backend.core.config import THUMBNAILS_DIR, AVATARS_DIR, BANNERS_DIR
-from backend.database.models import User, Subscription, Video
 from backend.services.mail_service import send_verification_email
-from backend.core.config import AVATARS_DIR, BANNERS_DIR
+from backend.core.config import THUMBNAILS_DIR, AVATARS_DIR, BANNERS_DIR
 from backend.core.security import (
     hash_password,
     verify_password,
@@ -125,8 +123,6 @@ class UserResponse(BaseModel):
     is_verified: bool = False
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
-    channel_description: Optional[str] = None
-    channel_banner_url: Optional[str] = None
     created_at: str
     subscriber_count: int = 0
     video_count: int = 0
@@ -617,8 +613,6 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         is_verified=user.is_verified,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
-        channel_description=user.channel_description,
-        channel_banner_url=user.channel_banner_url,
         created_at=user.created_at.isoformat(),
         subscriber_count=subscriber_count,
         video_count=video_count,

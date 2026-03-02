@@ -43,7 +43,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     
     # Profile Information
-    profile_image = Column(String(255), nullable=True, default="default_avatar.png")
+    profile_image = Column(String(255), nullable=True)
     channel_description = Column(Text, nullable=True)
     channel_banner_url = Column(String(255), nullable=True)
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
@@ -56,11 +56,6 @@ class User(Base):
     stream_category = Column(String(50), nullable=True, default="Gaming")
     stream_thumbnail = Column(String(255), nullable=True, default=None)
     studio_bg_url = Column(String(500), nullable=True, default=None)
-    is_live = Column(Boolean, default=False, nullable=False)
-    
-    # Email Verification & Account Status (main)
-    channel_description = Column(Text, nullable=True)
-    channel_banner_url = Column(String(255), nullable=True)
     
     # Email Verification
     is_verified = Column(Boolean, default=False, nullable=False)
@@ -192,7 +187,7 @@ class Video(Base):
     
     # File Storage
     video_filename = Column(String(255), nullable=False)
-    thumbnail_filename = Column(String(255), nullable=True, default="default_thumbnail.png")
+    thumbnail_filename = Column(String(255), nullable=True)
     
     # Analytics
     view_count = Column(Integer, default=0, nullable=False, index=True)  # Indexed for trending
