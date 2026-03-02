@@ -41,7 +41,7 @@ export const getValidUrl = (path, fallback) => {
         normalizedPath = `/${normalizedPath}`;
     }
 
-    // Static media paths: /storage/* and /uploads/* are served directly by the
+    // Static media paths: /storage/* is served directly by the
     // backend (proxied in dev by Vite, served by Nginx in production).
     // These must NOT get the /api prefix.
     if (normalizedPath.startsWith('/storage') || normalizedPath.startsWith('/uploads')) {
@@ -65,9 +65,9 @@ export const getAvatarUrl = (path, username) => {
         return fallback;
     }
 
-    // If it's just a filename (no slashes), assume it's in the uploads/avatars directory
+    // If it's just a filename (no slashes), assume it's in the storage/uploads/avatars directory
     if (!path.startsWith('http') && !path.includes('/')) {
-        const mediaPath = `/uploads/avatars/${path}`;
+        const mediaPath = `/storage/uploads/avatars/${path}`;
         return getMediaUrl(mediaPath) || fallback;
     }
 

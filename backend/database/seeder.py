@@ -173,7 +173,7 @@ def create_synthetic_users(db, count=20):
             username=username,
             email=email,
             password_hash=hash_password("TestPass123"),
-            profile_image="default_avatar.png",
+            profile_image=None,
             is_synthetic=1,  # Mark as synthetic
             created_at=datetime.utcnow() - timedelta(days=random.randint(1, 365))
         )

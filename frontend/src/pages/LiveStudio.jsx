@@ -1067,7 +1067,7 @@ const LiveStudio = () => {
         if (!url || url === 'default') return '/videos/default_bg.mp4';
         if (url.startsWith('blob:')) return url;
         if (url.startsWith('http') || url.startsWith('/videos/')) return url + "#t=0.1";
-        if (url.startsWith('/backgrounds')) return `${API_BASE_URL}/uploads${url}#t=0.1`;
+        if (url.startsWith('/backgrounds')) return `${API_BASE_URL}/storage/uploads${url}#t=0.1`;
         return `${API_BASE_URL}${url}#t=0.1`;
     };
 

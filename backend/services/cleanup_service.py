@@ -224,7 +224,7 @@ def purge_orphaned_files():
         for v in all_videos:
             if v.video_filename: valid_files.add(v.video_filename)
             if v.thumbnail_filename: valid_files.add(v.thumbnail_filename)
-        valid_files.add("default_thumbnail.png")
+        # valid_files.add("default_thumbnail.png") # Purged in Zero-Default policy
 
         # Scan directories
         for directory in [VIDEOS_DIR, THUMBNAILS_DIR]:

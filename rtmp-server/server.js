@@ -13,7 +13,8 @@ const config = {
     },
     http: {
         port: 8080,
-        allow_origin: '*'
+        allow_origin: '*',
+        api: true
     }
 };
 
