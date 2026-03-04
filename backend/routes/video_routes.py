@@ -13,7 +13,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Any, Union
 from datetime import datetime
 import os
@@ -245,6 +245,42 @@ async def upload_video(
     try:
         print(f"[UPLOAD] Starting video upload for user {current_user.username} - Title: {title}")
         
+        # ── DRAFT CLEANUP: Delete previous draft to prevent storage bloat ──
+        existing_draft = db.query(Video).filter(
+            Video.user_id == current_user.id,
+            Video.status == 'draft'
+        ).order_by(Video.upload_date.desc()).first()
+        
+        if existing_draft:
+            # Delete the old temp file
+            try:
+                old_temp_path = secure_resolve(TEMP_UPLOADS_DIR, existing_draft.video_filename)
+                if old_temp_path.exists():
+                    os.remove(str(old_temp_path))
+                    print(f"[DRAFT CLEANUP] Deleted old temp file: {existing_draft.video_filename}")
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old temp file: {e}")
+            
+            # Delete old thumbnail if it exists
+            try:
+                if existing_draft.thumbnail_filename:
+                    old_thumb_path = secure_resolve(THUMBNAILS_DIR, existing_draft.thumbnail_filename)
+                    if old_thumb_path.exists():
+                        os.remove(str(old_thumb_path))
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old thumbnail: {e}")
+            
+            # Delete old preview frames
+            try:
+                for preview_file in PREVIEWS_DIR.glob(f"video_{existing_draft.id}_preview_*.*"):
+                    os.remove(str(preview_file))
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old previews: {e}")
+            
+            db.delete(existing_draft)
+            db.commit()
+            print(f"[DRAFT CLEANUP] Deleted previous draft video ID {existing_draft.id}")
+        
         # Validate file
         file_size = 0
         video_file.file.seek(0, 2)
@@ -325,7 +361,7 @@ async def upload_video(
             category=category,
             tags=tags_list, # SQLAlchemy handles this if type is JSON, or we might need json.dumps if Text
             visibility='private', 
-            status='processing', # Initial status
+            status='draft', # Initial status — becomes 'published' on final publish
             scheduled_at=scheduled_datetime,
             video_filename=video_filename,
             thumbnail_filename=thumbnail_filename,
@@ -398,6 +434,42 @@ async def upload_video(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {str(e)}")
 
 
+@router.get("/drafts")
+def get_user_draft(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get the user's most recent draft video for resume-upload flow.
+    Returns a single draft object or {"draft": null} if none exist.
+    """
+    draft = db.query(Video).filter(
+        Video.user_id == current_user.id,
+        Video.status == 'draft'
+    ).order_by(Video.upload_date.desc()).first()
+    
+    if not draft:
+        return {"draft": None}
+    
+    return {
+        "draft": {
+            "id": draft.id,
+            "title": draft.title,
+            "description": draft.description,
+            "category": draft.category,
+            "tags": parse_tags(draft.tags),
+            "video_url": get_video_url(draft.video_filename, is_temp=True),
+            "thumbnail_url": get_thumbnail_url(draft.thumbnail_filename),
+            "duration": draft.duration,
+            "upload_date": draft.upload_date.isoformat(),
+            "preview_frames": [
+                get_preview_url(f.name) 
+                for f in PREVIEWS_DIR.glob(f"video_{draft.id}_preview_*.*")
+            ] if PREVIEWS_DIR.exists() else []
+        }
+    }
+
+
 @router.get("/", response_model=List[VideoListResponse])
 def get_all_videos(
     skip: int = 0,
@@ -420,7 +492,7 @@ def get_all_videos(
     if category: query = query.filter(Video.category == category)
     if search:
         query = query.filter(
-            or_(Video.title.ilike(f"%{search}%"), Video.description.ilike(f"%{search}%"))
+            or_(Video.title.ilike(f"%{search}%"), Video.description.ilike(f"%{search}%"), Video.tags.ilike(f"%{search}%"))
         )
     
     videos = query.order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
@@ -458,81 +530,80 @@ def semantic_search(
 ):
     """
     Performs context-aware local semantic search using sentence-transformers and numpy.
+    Falls back to powerful lexical search if ML returns nothing.
     """
     if not query.strip():
         return []
-        
-    try:
-        # 1. Generate local embedding for user query
-        query_vector = generate_embedding(query.strip())
-    except Exception as e:
-        print(f"[ERROR] Failed to generate query embedding: {e}")
-        return []
-        
+
+    from sqlalchemy import cast, String
+
     now = datetime.utcnow()
     clean_query = query.strip()
-    
-    # 2. Bypass ML for very short queries (1-2 chars) which produce extreme noise
-    if len(clean_query) < 3:
-        print(f"[SEMANTIC SEARCH] Query '{clean_query}' is too short ({len(clean_query)} chars). Using exact substring match fallback.")
-        
-        # Only match if the title explicitly Starts with the short query, or is exactly the short query.
-        # Removing % clean_query % because SQLite matching can still find letters inside words
-        # if spaces aren't strictly respected by the tokenizer.
-        eligible_videos = db.query(Video).filter(
+    top_videos = []  # This is the master result list
+
+    # ── PHASE 1: Attempt ML/Semantic Search ──
+    try:
+        query_vector = generate_embedding(clean_query)
+
+        if query_vector and len(clean_query) >= 3:
+            # Fetch all eligible videos that have embeddings
+            eligible_videos = db.query(Video).filter(
+                Video.visibility == "public",
+                Video.status == "published",
+                or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+                Video.embedding != None
+            ).all()
+
+            scored_videos = []
+            for video in eligible_videos:
+                try:
+                    if video.embedding is None:
+                        continue
+                    video_vector = video.embedding if isinstance(video.embedding, list) else json.loads(video.embedding)
+                    if not video_vector:
+                        continue
+                    score = compute_cosine_similarity(query_vector, video_vector)
+                    if clean_query.lower() in video.title.lower():
+                        score += 0.2
+                    scored_videos.append((score, video))
+                except Exception:
+                    continue
+
+            scored_videos.sort(key=lambda x: x[0], reverse=True)
+            top_videos = [v[1] for v in scored_videos[:limit] if v[0] > 0.45]
+
+        elif len(clean_query) < 3:
+            # Short query: use prefix match
+            short_matches = db.query(Video).filter(
+                Video.visibility == "public",
+                Video.status == "published",
+                or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+                or_(
+                    Video.title.ilike(f"{clean_query}%"),
+                    Video.title.ilike(clean_query),
+                )
+            ).limit(limit).all()
+            top_videos = short_matches
+
+    except Exception:
+        pass  # ML failure is fine — fallback handles it
+
+    # ── PHASE 2: UNCONDITIONAL LEXICAL FALLBACK ──
+    # If ML returned nothing for ANY reason, lexical search always fires.
+    if not top_videos:
+        top_videos = db.query(Video).filter(
             Video.visibility == "public",
             Video.status == "published",
             or_(Video.scheduled_at == None, Video.scheduled_at <= now),
             or_(
-                Video.title.ilike(f"{clean_query}%"),          # Starts with
-                Video.title.ilike(clean_query),                # Exact match
+                Video.title.ilike(f"%{clean_query}%"),
+                Video.description.ilike(f"%{clean_query}%"),
+                cast(Video.tags, String).ilike(f"%{clean_query}%"),
+                Video.category.ilike(f"%{clean_query}%")
             )
-        ).all()
-        # No scoring needed, return direct match
-        scored_videos = [(1.0, v) for v in eligible_videos]
-        top_videos = [v[1] for v in scored_videos[:limit]]
-        print(f"[SEMANTIC SEARCH] Found {len(top_videos)} substring matches.")
-    else:
-        # Fetch all eligible videos that have embeddings stored natively in SQLite
-        eligible_videos = db.query(Video).filter(
-            Video.visibility == "public",
-            Video.status == "published",
-            or_(Video.scheduled_at == None, Video.scheduled_at <= now),
-            Video.embedding != None
-        ).all()
-        
-        if not eligible_videos:
-            return []
-            
-        # 3. Calculate Cosine Similarity locally using our custom numpy logic
-        scored_videos = []
-        for video in eligible_videos:
-            try:
-                # SQLAlchemy JSON column usually returns a Python list
-                video_vector = video.embedding if isinstance(video.embedding, list) else json.loads(video.embedding)
-                if not video_vector:
-                    continue
-                    
-                score = compute_cosine_similarity(query_vector, video_vector)
-                
-                # Boost score if there's an exact substring match in the title
-                if clean_query.lower() in video.title.lower():
-                    score += 0.2
-                    
-                scored_videos.append((score, video))
-                print(f"[SEMANTIC SEARCH] Score for video {video.id} ('{video.title}'): {score:.4f}")
-            except Exception as e:
-                print(f"[WARNING] Could not compute distance for video {video.id}: {e}")
-                continue
-                
-        # 4. Sort by score descending (highest similarity first)
-        scored_videos.sort(key=lambda x: x[0], reverse=True)
-        
-        # Take top N
-        # 0.45 threshold ensures we only return strong contextual/semantic matches.
-        top_videos = [v[1] for v in scored_videos[:limit] if v[0] > 0.45]
-        print(f"[SEMANTIC SEARCH] ML Search returned {len(top_videos)} strong matches above threshold 0.45.")
-    
+        ).order_by(Video.view_count.desc()).limit(limit).all()
+
+    # ── PHASE 3: Format and return ──
     return [
         VideoListResponse(
             id=video.id,
@@ -658,6 +729,19 @@ class VideoUpdateRequest(BaseModel):
     visibility: Optional[str] = None
     scheduled_at: Optional[str] = None
     selected_preview_frame: Optional[str] = None
+
+    @validator('title', 'description', 'category', pre=True, always=True)
+    def sanitize_text_fields(cls, v):
+        if v is None: return v
+        import re
+        return re.sub(r'<[^>]+>', '', str(v)).strip()
+
+    @validator('tags', pre=True, always=True)
+    def sanitize_tags(cls, v):
+        if v is None: return v
+        import re
+        return [re.sub(r'<[^>]+>', '', str(tag)).strip() for tag in v]
+
     class Config: from_attributes = True
 
 @router.post("/{video_id}/thumbnail", response_model=VideoResponse)
@@ -726,6 +810,14 @@ async def update_video(
     if update_data.tags is not None: 
         video.tags = json.dumps(update_data.tags)
         needs_new_embedding = True
+
+    # ── Auto-Hashtag Injection: append #tags to description if not already present ──
+    if update_data.tags and video.description is not None:
+        tag_list = [t.strip() for t in update_data.tags if t.strip()]
+        if tag_list:
+            hashtag_string = " ".join([f"#{t.replace(' ', '')}" for t in tag_list])
+            if hashtag_string not in (video.description or ""):
+                video.description = f"{video.description}\n\n{hashtag_string}".strip()
         
     if needs_new_embedding:
         try:
@@ -835,7 +927,11 @@ async def update_video(
 @router.get("/user/{user_id}", response_model=List[VideoListResponse])
 def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
     if limit > 100: limit = 100
-    videos = db.query(Video).filter(Video.user_id == user_id).order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
+    videos = db.query(Video).filter(
+        Video.user_id == user_id,
+        Video.status == 'published',
+        Video.visibility == 'public'
+    ).order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
     
     return [
         VideoListResponse(

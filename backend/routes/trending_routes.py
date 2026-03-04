@@ -58,6 +58,7 @@ def get_trending_videos(
     
     videos = db.query(Video)\
         .options(joinedload(Video.author))\
+        .filter(Video.status == 'published', Video.visibility == 'public')\
         .order_by(ratio_expr.desc())\
         .limit(limit)\
         .all()

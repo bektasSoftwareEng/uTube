@@ -17,10 +17,7 @@ export default defineConfig({
                 proxyTimeout: 60000,
                 configure: (proxy, options) => {
                     proxy.on('error', (err, req, res) => {
-                        // Suppressed spam: console.log(`[Vite Proxy Error] /api: ${err.message}`);
-                    });
-                    proxy.on('proxyReq', (proxyReq, req, res) => {
-                        proxyReq.setHeader('Connection', 'keep-alive');
+                        // Suppress proxy error spam in dev console
                     });
                 }
             },

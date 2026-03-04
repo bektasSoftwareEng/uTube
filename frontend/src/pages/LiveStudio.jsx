@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
-import { FLV_BASE_URL, WS_BASE_URL, RTMP_URL } from '../utils/urlHelper';
+import { FLV_BASE_URL, WS_BASE_URL, RTMP_URL, getValidUrl, THUMBNAIL_FALLBACK } from '../utils/urlHelper';
 import { UTUBE_TOKEN } from '../utils/authConstants';
 import { toast } from 'react-hot-toast';
 import flvjs from 'flv.js';
@@ -13,47 +13,16 @@ import BackgroundGalleryModal from '../components/BackgroundGalleryModal';
 
 const CATEGORIES = ['Gaming', 'IRL', 'Music', 'Technology', 'Education', 'Art'];
 
-// ── Circular Gauge Component ─────────────────────────────────────────────────
-const CircularGauge = ({ value, max = 6000, size = 80, strokeWidth = 6 }) => {
-    const radius = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const pct = Math.min(value / max, 1);
-    const offset = circumference * (1 - pct);
-    const color = value >= 3000 ? '#22c55e' : value >= 1000 ? '#eab308' : '#ef4444';
-
-    return (
-        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="-rotate-90">
-                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={strokeWidth} />
-                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color}
-                    strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={circumference}
-                    strokeDashoffset={offset} className="transition-all duration-700 ease-out"
-                    style={{ filter: `drop-shadow(0 0 6px ${color})` }} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-mono text-xs font-black" style={{ color, textShadow: `0 0 8px ${color}40` }}>
-                    {value > 0 ? value : '—'}
-                </span>
-                <span className="text-[8px] text-white/30 uppercase tracking-widest">kbps</span>
-            </div>
-        </div>
-    );
-};
-
 const LiveStudio = () => {
     // ── Stream Settings ──────────────────────────────────────────────────
     const [streamTitle, setStreamTitle] = useState('');
     const [streamCategory, setStreamCategory] = useState('Gaming');
     const [streamDescription, setStreamDescription] = useState('');
-    const [streamVisibility, setStreamVisibility] = useState('Public');
-    const [streamTags, setStreamTags] = useState('');
-    const [streamingQuality, setStreamingQuality] = useState('1080p');
     const [audioInputId, setAudioInputId] = useState('');
     const [videoInputId, setVideoInputId] = useState('');
     const [audioDevices, setAudioDevices] = useState([]);
     const [videoDevices, setVideoDevices] = useState([]);
     const [showTestCamera, setShowTestCamera] = useState(false);
-    const [testMic, setTestMic] = useState(false);
     const testVideoRef = useRef(null);
 
     // Mic Test state
@@ -81,6 +50,23 @@ const LiveStudio = () => {
         navigator.mediaDevices.addEventListener('devicechange', getDevices);
         return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
     }, []);
+
+    // ── Test Camera Effect ────────────────────────────────────────────────
+    useEffect(() => {
+        let stream;
+        if (showTestCamera && testVideoRef.current) {
+            navigator.mediaDevices.getUserMedia({ video: videoInputId ? { deviceId: videoInputId } : true })
+                .then(s => {
+                    stream = s;
+                    if (testVideoRef.current) testVideoRef.current.srcObject = s;
+                })
+                .catch(e => console.error("Camera test failed", e));
+        }
+        return () => {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+        };
+    }, [showTestCamera, videoInputId]);
+
     const [peakViewers, setPeakViewers] = useState(0);
     const [totalWatchTime, setTotalWatchTime] = useState(0);
     const [newSubscribersCount, setNewSubscribersCount] = useState(0);
@@ -111,22 +97,9 @@ const LiveStudio = () => {
     const [uptime, setUptime] = useState(0);
 
     // ── UI State ─────────────────────────────────────────────────────────
-    const [activeRightTab, setActiveRightTab] = useState('settings');
-    const [bitrateData, setBitrateData] = useState(Array(20).fill(0));
     const [streamStats, setStreamStats] = useState({ bitrate: 0, fps: 0, resolution: '' });
-    const [compactActivity, setCompactActivity] = useState(false);
-
-    // ── Accordion State ──────────────────────────────────────────────────
-    const [isEquipmentOpen, setIsEquipmentOpen] = useState(true);
-    const [isPerfOpen, setIsPerfOpen] = useState(false);
-    const [isBgOpen, setIsBgOpen] = useState(false);
 
     // ── Pro Telemetry & Controls ─────────────────────────────────────────
-    const [droppedFrames, setDroppedFrames] = useState(0);
-    const [audioLevel, setAudioLevel] = useState(0);
-    const [scenePreset, setScenePreset] = useState(() => localStorage.getItem('uTube_scene') || 'A');
-    const [micEnabled, setMicEnabled] = useState(true);
-    const [cameraEnabled, setCameraEnabled] = useState(true);
 
     // ── Dual-State Mode ──────────────────────────────────────────────────
     const [studioMode, setStudioMode] = useState(() => localStorage.getItem('uTube_studioMode') || 'setup'); // 'setup' | 'broadcast'
@@ -138,9 +111,7 @@ const LiveStudio = () => {
 
     const [activeBgUrl, setActiveBgUrl] = useState(() => localStorage.getItem('uTube_studioBg') || '');
     const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
-    const WS_BASE = `ws://${window.location.hostname}:8000/api/v1/ws`;
     const FLV_BASE = `http://${window.location.hostname}:8080`;
-    const MEDIA_API_BASE = `http://${window.location.hostname}:8080/api`;
 
     const API_BASE_URL = import.meta.env.VITE_API_URL || API_BASE;
     const [overlayOpacity, setOverlayOpacity] = useState(() => {
@@ -157,8 +128,6 @@ const LiveStudio = () => {
     const thumbInputRef = useRef(null);
     const [isUploadingThumb, setIsUploadingThumb] = useState(false);
 
-    // Use empty string to leverage Vite Proxy instead of throwing CORS errors
-    const NMS_API = import.meta.env.VITE_NMS_API_URL || '';
     const [backendOnline, setBackendOnline] = useState(true);
 
     // ── Chat State (WebSocket-powered) ───────────────────────────────────
@@ -166,8 +135,6 @@ const LiveStudio = () => {
     const [chatMessages, setChatMessages] = useState([]);
     const [wsStatus, setWsStatus] = useState('disconnected');
     const [slowModeEnabled, setSlowModeEnabled] = useState(false);
-    const [fetchErrorCount, setFetchErrorCount] = useState(0);
-    const [isPollingStopped, setIsPollingStopped] = useState(false);
 
     // ── Hype Meter ────────────────────────────────────────────────────────
     const [hypeLevel, setHypeLevel] = useState(0);
@@ -187,7 +154,6 @@ const LiveStudio = () => {
     const [viewers, setViewers] = useState([]);
     const [viewerCount, setViewerCount] = useState(0);
     const [showViewerList, setShowViewerList] = useState(false);
-    const [signalHalt, setSignalHalt] = useState(false);
 
     // ── Refs ─────────────────────────────────────────────────────────────
     const videoRef = useRef(null);
@@ -207,90 +173,11 @@ const LiveStudio = () => {
         if (isLive) {
             setStudioMode('broadcast');
         } else {
-            // We no longer automatically force 'setup' mode when isLive drops.
-            // The checkSignal polling grace period handles kicking dead streams to setup.
+            // Stream ended — return to setup mode and clear signal
+            setStudioMode('setup');
             setSignalDetected(false);
         }
     }, [isLive]);
-
-    // ── Signal Heartbeat (detect stream in setup mode or connection recovery) ────────────────
-    useEffect(() => {
-        if (isLive || !currentUser?.username || isPollingStopped || signalHalt) return;
-        let active = true;
-        let localMissCount = 0;
-
-        const checkSignal = async () => {
-            if (!active) return;
-            try {
-                let found = false;
-                let fetchError = false;
-                let res;
-                try {
-                    res = await fetch(`${MEDIA_API_BASE}/streams`);
-                    if (!res.ok && res.status === 404) {
-                        res = await fetch(`${MEDIA_API_BASE}/server/streams`);
-                    }
-
-                    if (res && res.status === 404) {
-                        setSignalHalt(true);
-                        setTimeout(() => setSignalHalt(false), 30000);
-                    } else if (res && res.ok) {
-                        setFetchErrorCount(0);
-                    }
-                } catch (e) {
-                    setSignalHalt(true);
-                    setTimeout(() => setSignalHalt(false), 30000);
-                    setBackendOnline(false);
-                }
-
-                if (!fetchError) setBackendOnline(true);
-
-                if (res && res.ok) {
-                    const data = await res.json();
-                    const liveStreams = data?.live || data?.['live'] || {};
-                    for (const key of Object.keys(liveStreams)) {
-                        if (liveStreams[key]?.publisher && (key === streamKey || key.includes(streamKey))) {
-                            found = true;
-                            break;
-                        }
-                    }
-                } else if (res?.status === 404 && fetchErrorCount < 3) {
-                    // Attempt blind fallback if still under retry limit
-                    found = await new Promise((resolve) => {
-                        if (!flvjs.isSupported()) return resolve(false);
-                        const testUrl = `${FLV_BASE}/${streamKey}.flv`;
-                        const testPlayer = flvjs.createPlayer({ type: 'flv', url: testUrl, isLive: true, cors: true });
-                        const cleanup = (result) => {
-                            try { testPlayer.unload(); testPlayer.destroy(); } catch (e) { }
-                            resolve(result);
-                        };
-                        const timeout = setTimeout(() => cleanup(false), 2000);
-                        testPlayer.on(flvjs.Events.METADATA_ARRIVED, () => { clearTimeout(timeout); cleanup(true); });
-                        testPlayer.on(flvjs.Events.STATISTICS_INFO, () => { clearTimeout(timeout); cleanup(true); });
-                        testPlayer.on(flvjs.Events.ERROR, () => { clearTimeout(timeout); cleanup(false); });
-                        try { testPlayer.load(); } catch (e) { cleanup(false); }
-                    });
-                }
-
-                if (active) {
-                    if (found) {
-                        localMissCount = 0;
-                        setSignalDetected(true);
-                    } else {
-                        localMissCount += 1;
-                        if (localMissCount >= 2) {
-                            setSignalDetected(false);
-                            setStudioMode(prev => prev === 'broadcast' ? 'setup' : prev);
-                        }
-                    }
-                }
-            } catch { }
-        };
-
-        checkSignal();
-        const interval = setInterval(checkSignal, 3000);
-        return () => { active = false; clearInterval(interval); };
-    }, [isLive, streamKey, NMS_API, signalHalt, isPollingStopped]);
 
     // ── Equipment checklist detection (Real Hardware Sync) ────────────────
     useEffect(() => {
@@ -313,58 +200,12 @@ const LiveStudio = () => {
         checkEquipment();
     }, []);
 
-    // ── Pro Telemetry & Audio Simulation (Real-time Mock) ─────────────────
+    // ── Reset Stream Stats when offline ─────────────────
     useEffect(() => {
         if (!isLive && !signalDetected) {
-            setAudioLevel(0);
-            setStreamStats(prev => ({ ...prev, bitrate: 0, fps: 0 }));
-            return;
+            setStreamStats({ bitrate: 0, fps: 0, resolution: '' });
         }
-        const interval = setInterval(() => {
-            if (micEnabled) {
-                setAudioLevel(Math.floor(Math.random() * 50) + 30 + (Math.random() > 0.8 ? 20 : 0));
-            } else {
-                setAudioLevel(0);
-            }
-            setStreamStats(prev => ({
-                ...prev,
-                bitrate: 5500 + Math.floor(Math.random() * 600),
-                fps: 59 + (Math.random() > 0.5 ? 1 : 0)
-            }));
-            if (Math.random() > 0.95) setDroppedFrames(prev => prev + Math.floor(Math.random() * 3) + 1);
-        }, 500);
-        return () => clearInterval(interval);
-    }, [isLive, signalDetected, micEnabled]);
-
-    // ── Device Enumeration ────────────────────────────────────────────────
-    useEffect(() => {
-        const getDevices = async () => {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                setAudioDevices(devices.filter(d => d.kind === 'audioinput'));
-                setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
-            } catch (err) {
-                console.warn("Device enumeration failed", err);
-            }
-        };
-        getDevices();
-    }, []);
-
-    // ── Test Camera Effect ────────────────────────────────────────────────
-    useEffect(() => {
-        let stream;
-        if (showTestCamera && testVideoRef.current) {
-            navigator.mediaDevices.getUserMedia({ video: videoInputId ? { deviceId: videoInputId } : true })
-                .then(s => {
-                    stream = s;
-                    if (testVideoRef.current) testVideoRef.current.srcObject = s;
-                })
-                .catch(e => console.error("Camera test failed", e));
-        }
-        return () => {
-            if (stream) stream.getTracks().forEach(t => t.stop());
-        };
-    }, [showTestCamera, videoInputId]);
+    }, [isLive, signalDetected]);
 
     // ── Hype / Watch Time / Peak ──────────────────────────────────────────
     useEffect(() => {
@@ -372,7 +213,7 @@ const LiveStudio = () => {
             const now = Date.now();
             const recentMessages = messageTimestampsRef.current.filter(t => now - t < 60000);
             setMessageRate(recentMessages.length);
-        }, 2000);
+        }, 3000); // ✅ Reduced from 2s to 3s
         return () => clearInterval(rateInterval);
     }, []);
 
@@ -440,6 +281,15 @@ const LiveStudio = () => {
             }
         });
 
+        // ── REAL BITRATE TRACKING ──
+        player.on(flvjs.Events.STATISTICS_INFO, (stats) => {
+            setStreamStats({
+                bitrate: Math.round((stats.speed || 0) / 1024), // Convert bytes/s to kbps
+                fps: Math.round(stats.currentFps || 0),
+                resolution: `${stats.videoWidth || 0}x${stats.videoHeight || 0}`
+            });
+        });
+
         player.on(flvjs.Events.ERROR, () => {
             if (flvPlayerRef.current) { try { flvPlayerRef.current.unload(); flvPlayerRef.current.detachMediaElement(); flvPlayerRef.current.destroy(); } catch (e) { } flvPlayerRef.current = null; }
             setIsLive(false); setIsConnecting(false);
@@ -489,7 +339,10 @@ const LiveStudio = () => {
             const token = localStorage.getItem(UTUBE_TOKEN);
             if (!token) return;
 
-            const wsUrl = `${WS_BASE}/chat/${currentUser.username}?token=${encodeURIComponent(token)}`;
+            // Force WS connection directly to backend, bypassing Vite proxy
+            const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+            const wsBaseUrl = API_URL.replace(/^http/, 'ws');
+            const wsUrl = `${wsBaseUrl}/api/v1/ws/chat/${encodeURIComponent(currentUser.username)}?token=${encodeURIComponent(token)}`;
             setWsStatus(retryCount === 0 ? 'connecting' : 'reconnecting');
             const ws = new WebSocket(wsUrl);
 
@@ -503,16 +356,25 @@ const LiveStudio = () => {
                     const parsedMessage = JSON.parse(event.data);
                     switch (parsedMessage.type) {
                         case 'chat': case 'system':
-                            setChatMessages(prev => [...prev, parsedMessage].slice(-200));
+                            // ✅ OPTIMIZED: Functional update prevents re-renders
+                            setChatMessages(prev => {
+                                const newMessages = [...prev, parsedMessage];
+                                return newMessages.length > 200 ? newMessages.slice(-200) : newMessages;
+                            });
                             if (parsedMessage.type === 'chat') messageTimestampsRef.current.push(Date.now());
                             break;
                         case 'activity':
-                            setActivities(prev => [parsedMessage, ...prev].slice(0, 50));
+                            setActivities(prev => {
+                                const newActivities = [parsedMessage, ...prev];
+                                return newActivities.length > 50 ? newActivities.slice(0, 50) : newActivities;
+                            });
                             if (parsedMessage.activity_type === 'subscribe') setNewSubscribersCount(p => p + 1);
                             break;
                         case 'viewer_list': setViewers(parsedMessage.viewers || []); setViewerCount(parsedMessage.count || 0); break;
                         case 'slow_mode': setSlowModeEnabled(parsedMessage.enabled); break;
-                        case 'message_deleted': setChatMessages(prev => prev.filter(m => m.id !== parsedMessage.msg_id)); break;
+                        case 'message_deleted':
+                            setChatMessages(prev => prev.filter(m => m.id !== parsedMessage.msg_id));
+                            break;
                         case 'POLL_START':
                             setActivePoll(parsedMessage.data);
                             setPollTimeLeft(parsedMessage.data.duration);
@@ -552,7 +414,8 @@ const LiveStudio = () => {
                 } catch { }
             };
 
-            ws.onclose = () => {
+            ws.onclose = (event) => {
+                console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`);
                 if (!isComponentMounted) return;
 
                 setWsStatus('disconnected'); wsRef.current = null;
@@ -778,7 +641,7 @@ const LiveStudio = () => {
         if (studioMode === 'broadcast' && isLive && currentUser?.username) {
             const fetchDashboardStats = async () => {
                 try {
-                    const res = await ApiClient.get(`/streams/${currentUser.username}/stats`);
+                    const res = await ApiClient.get(`/streams/${encodeURIComponent(currentUser.username)}/stats`);
                     const data = res.data;
 
                     setViewerCount(data.current_viewers || 0);
@@ -811,10 +674,6 @@ const LiveStudio = () => {
     // ────────────────────────────────────────────────────────────────────────
 
     useEffect(() => {
-        if (activeRightTab === 'chat' && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }, [chatMessages, activeRightTab]);
-
-    useEffect(() => {
         const hypeInterval = setInterval(() => {
             const now = Date.now();
             messageTimestampsRef.current = messageTimestampsRef.current.filter(t => now - t < 10000);
@@ -823,36 +682,8 @@ const LiveStudio = () => {
         return () => clearInterval(hypeInterval);
     }, []);
 
-    useEffect(() => {
-        let statsInterval;
-        if (isLive && streamKey) {
-            const fetchStats = async () => {
-                try {
-                    const res = await fetch(`${NMS_API}/api/streams`);
-                    if (!res.ok) throw new Error('NMS unreachable');
-                    const data = await res.json();
-                    const liveStreams = data?.live || {};
-                    let found = null;
-                    for (const key of Object.keys(liveStreams)) {
-                        const pub = liveStreams[key]?.publisher;
-                        if (pub && (key === streamKey || key.includes(streamKey))) { found = pub; break; }
-                    }
-                    if (found) {
-                        const bitrate = Math.round((found.bytes || 0) / 1024) || found.videoBitrate || 0;
-                        const realBitrate = found.videoBitrate || found.bitrate || bitrate;
-                        setStreamStats({ bitrate: realBitrate, fps: found.videoFps || found.fps || 0, resolution: found.videoWidth && found.videoHeight ? `${found.videoWidth}x${found.videoHeight}` : '' });
-                        setBitrateData(prev => [...prev.slice(1), realBitrate]);
-                    }
-                } catch { }
-            };
-            fetchStats();
-            statsInterval = setInterval(fetchStats, 2000);
-        } else {
-            setBitrateData(Array(20).fill(0));
-            setStreamStats({ bitrate: 0, fps: 0, resolution: '' });
-        }
-        return () => clearInterval(statsInterval);
-    }, [isLive, streamKey]);
+    // ── Stream stats now derived from flv.js STATISTICS_INFO event in initPlayer ──
+    // (Direct NMS stats polling removed — no more http://127.0.0.1:8080 requests)
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -871,17 +702,28 @@ const LiveStudio = () => {
 
                 if (userResponse.data.stream_title) setStreamTitle(userResponse.data.stream_title);
                 if (userResponse.data.stream_category) setStreamCategory(userResponse.data.stream_category);
-                // Background & Thumbnail data is available inside currentUser
                 if (userResponse.data.studio_bg_url) {
                     setActiveBgUrl(userResponse.data.studio_bg_url);
                     localStorage.setItem('uTube_studioBg', userResponse.data.studio_bg_url);
                 }
+
+                // ── SMART PHASE RESTORATION ──
+                // If the backend says the user is_live, restore broadcast mode
+                // so a page refresh doesn't kill the broadcaster's UI context.
+                // The OBS RTMP stream continues regardless of the browser.
+                if (userResponse.data.is_live) {
+                    setIsLive(true);
+                    setStudioMode('broadcast');
+                    setSignalDetected(true);
+                    // Auto-init FLV player after a short delay to let refs mount
+                    setTimeout(() => initPlayer(), 500);
+                }
+
                 setBackendOnline(true);
             } catch (error) {
-                if (error.code === 'ERR_NETWORK' || error.message.toLowerCase().includes('network error') || error.code === 'ECONNABORTED') {
+                if (error.code === 'ERR_NETWORK' || error.message?.toLowerCase().includes('network error') || error.code === 'ECONNABORTED') {
                     setBackendOnline(false);
                 }
-                // Silently handle offline backend instead of spamming toast loop errors during offline mode
             } finally { setIsLoadingKey(false); }
         };
         fetchInitialData();
@@ -923,22 +765,37 @@ const LiveStudio = () => {
         const formData = new FormData();
         formData.append('file', file);
         try {
-            const res = await ApiClient.post('/auth/live/thumbnail', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            const newPath = res.data?.path || res.data?.stream_thumbnail;
+            // DO NOT set Content-Type manually — Axios must auto-set the multipart boundary
+            const res = await ApiClient.post('/auth/live/thumbnail', formData);
+            console.log('[Thumbnail Upload] Response:', res.data);
+            const newPath = res.data?.path || res.data?.stream_thumbnail || res.data?.thumbnail_url;
+            if (!newPath) {
+                console.warn('[Thumbnail Upload] No path returned from backend:', res.data);
+                toast.error("Upload succeeded but no URL returned.");
+                return;
+            }
             setCurrentUser(prev => {
                 const updated = { ...prev, stream_thumbnail: newPath };
                 try {
                     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
                     localStorage.setItem('user', JSON.stringify({ ...storedUser, stream_thumbnail: newPath }));
-                } catch (e) { console.error('Storage error', e); }
+                } catch (storageErr) { console.error('Storage error', storageErr); }
                 return updated;
             });
             toast.success("Thumbnail updated!");
         } catch (err) {
-            console.error(err);
-            toast.error(err.response?.data?.detail || "Failed to upload thumbnail.");
+            console.error('[Thumbnail Upload] Error:', err);
+            // Safely extract error message — Pydantic returns detail as array of objects
+            const errorDetail = err.response?.data?.detail;
+            let errorMessage = "Failed to upload thumbnail.";
+            if (typeof errorDetail === 'string') {
+                errorMessage = errorDetail;
+            } else if (Array.isArray(errorDetail) && errorDetail.length > 0) {
+                errorMessage = errorDetail[0]?.msg || JSON.stringify(errorDetail[0]);
+            } else if (errorDetail && typeof errorDetail === 'object') {
+                errorMessage = errorDetail.msg || JSON.stringify(errorDetail);
+            }
+            toast.error(errorMessage);
         } finally {
             setIsUploadingThumb(false);
             if (thumbInputRef.current) thumbInputRef.current.value = '';
@@ -1322,7 +1179,7 @@ const LiveStudio = () => {
                                                     <div onClick={() => !isUploadingThumb && thumbInputRef.current?.click()} className="w-full h-[155px] border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-red-500/30 transition-all group relative overflow-hidden bg-black/40 shadow-inner">
                                                         <input type="file" ref={thumbInputRef} accept="image/*" className="hidden" onChange={handleUploadThumbnail} />
                                                         {currentUser?.stream_thumbnail && currentUser.stream_thumbnail !== 'null' ? (
-                                                            <img src={currentUser.stream_thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover transition-opacity group-hover:opacity-40" />
+                                                            <img src={getValidUrl(currentUser.stream_thumbnail, THUMBNAIL_FALLBACK)} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover transition-opacity group-hover:opacity-40" />
                                                         ) : (
                                                             <div className="flex flex-col items-center gap-2 opacity-20 group-hover:opacity-50 transition-all pointer-events-none">
                                                                 <svg className="w-12 h-12 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1833,35 +1690,6 @@ const LiveStudio = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* ═══ FULLSCREEN RESULTS MODAL OVERRIDE ═══ */}
-                {activePoll && pollPhase === 'results' && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
-                        <div className="bg-gray-900 border border-cyan-500 p-8 rounded-2xl w-full max-w-2xl text-center shadow-[0_0_50px_rgba(6,182,212,0.5)]">
-                            <h2 className="text-4xl font-bold text-cyan-400 mb-6 uppercase tracking-wider">📊 Poll Results</h2>
-                            <h3 className="text-2xl text-white mb-8">{activePoll.question}</h3>
-                            <div className="space-y-4 mb-8 text-left">
-                                {activePoll.options.map((opt, i) => {
-                                    const total = activePoll.options.reduce((sum, o) => sum + (o.votes || 0), 0);
-                                    const pct = total > 0 ? Math.round(((opt.votes || 0) / total) * 100) : 0;
-                                    const isWinner = opt.votes > 0 && opt.votes === Math.max(...activePoll.options.map(o => o.votes || 0));
-                                    return (
-                                        <div key={i} className="relative p-4 bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-                                            <div className="absolute top-0 left-0 h-full bg-cyan-600/50 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
-                                            <div className="relative z-10 flex justify-between text-xl text-white font-bold">
-                                                <span>{opt.text} {isWinner && '👑 WINNER'}</span>
-                                                <span>{pct}% ({opt.votes || 0})</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <button onClick={() => { setActivePoll(null); setPollPhase(null); }} className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xl transition-colors">
-                                CLOSE RESULTS
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );

@@ -166,6 +166,7 @@ def get_subscription_feed(
     videos = (
         db.query(Video)
         .filter(Video.user_id.in_(followed_ids))
+        .filter(Video.status == 'published', Video.visibility == 'public')
         .order_by(Video.upload_date.desc())
         .offset(skip)
         .limit(limit)
