@@ -119,10 +119,7 @@ const Profile = () => {
                                     <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-1">Email</p>
                                     <p className="font-medium text-lg truncate">{user.email || 'No email provided'}</p>
                                 </div>
-                                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 hover:border-white/10 transition-colors">
-                                    <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-1">User ID</p>
-                                    <p className="font-mono text-sm opacity-60 truncate">{user.id}</p>
-                                </div>
+
                             </div>
 
                             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">

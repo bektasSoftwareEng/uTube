@@ -83,7 +83,7 @@ const Tip = ({ label, children }) => (
 );
 
 // ── Main Component ────────────────────────────────────────────────────────────
-const VideoPlayer = ({ src, poster, onError }) => {
+const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStatus }) => {
     const videoRef = useRef(null);
     const containerRef = useRef(null);
     const progressRef = useRef(null);
@@ -109,7 +109,22 @@ const VideoPlayer = ({ src, poster, onError }) => {
     const [showVolume, setShowVolume] = useState(false);
 
     const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-    const QUALITIES = ['Auto', '1080p HD', '720p', '480p', '360p'];
+
+    // Build quality options from availableResolutions prop
+    const QUALITIES = React.useMemo(() => {
+        if (!availableResolutions || Object.keys(availableResolutions).length === 0) {
+            return ['Auto'];
+        }
+        // Sort resolutions: 1080p, 720p, 360p, then original
+        const order = ['1080p', '720p', '480p', '360p', 'original'];
+        const keys = Object.keys(availableResolutions);
+        const sorted = order.filter(k => keys.includes(k));
+        // Add any keys not in the predefined order
+        keys.forEach(k => { if (!sorted.includes(k)) sorted.push(k); });
+        return ['Auto', ...sorted];
+    }, [availableResolutions]);
+
+    const isTranscoding = transcodeStatus === 'processing';
 
     // ── Auto-hide controls ──────────────────────────────────────────────────
     const scheduleHide = useCallback(() => {
@@ -258,6 +273,44 @@ const VideoPlayer = ({ src, poster, onError }) => {
         v.playbackRate = rate;
         setPlaybackRate(rate);
         setShowSpeedMenu(false);
+    };
+
+    const changeQuality = (q) => {
+        setQuality(q);
+        setShowQualityMenu(false);
+
+        // Resolve the new source URL
+        let newSrc = src; // Default: original src prop
+        if (q !== 'Auto' && availableResolutions && availableResolutions[q]) {
+            // Build full URL from the resolution path
+            const mediaBase = import.meta.env.VITE_MEDIA_BASE_URL || '';
+            const resPath = availableResolutions[q];
+            newSrc = resPath.startsWith('http') ? resPath : `${mediaBase}${resPath}`;
+        }
+
+        const v = videoRef.current;
+        if (!v) return;
+
+        // If src is already the same, no need to reload
+        const currentSrc = v.currentSrc || v.src || '';
+        if (currentSrc.endsWith(newSrc) || currentSrc === newSrc) return;
+
+        // Save state before switching
+        const savedTime = v.currentTime;
+        const savedRate = v.playbackRate;
+        const wasPlaying = !v.paused;
+
+        // Switch source and restore state
+        v.src = newSrc;
+        v.load();
+
+        const onReady = () => {
+            v.currentTime = savedTime;
+            v.playbackRate = savedRate;
+            if (wasPlaying) v.play().catch(() => { });
+            v.removeEventListener('loadedmetadata', onReady);
+        };
+        v.addEventListener('loadedmetadata', onReady);
     };
 
     // ── Progress bar interaction ─────────────────────────────────────────────
@@ -551,14 +604,22 @@ const VideoPlayer = ({ src, poster, onError }) => {
                                         transition={{ duration: 0.15 }}
                                         className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[120px]"
                                     >
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Quality</div>
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
+                                            Quality
+                                            {isTranscoding && (
+                                                <span className="inline-flex items-center gap-1 text-yellow-400 normal-case tracking-normal">
+                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                                    Processing…
+                                                </span>
+                                            )}
+                                        </div>
                                         {QUALITIES.map(q => (
                                             <button
                                                 key={q}
-                                                onClick={() => { setQuality(q); setShowQualityMenu(false); }}
+                                                onClick={() => changeQuality(q)}
                                                 className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
                                             >
-                                                <span>{q}</span>
+                                                <span>{q === 'original' ? 'Original' : q === '1080p' ? '1080p HD' : q}</span>
                                                 {quality === q && <span className="text-[10px]">&bull;</span>}
                                             </button>
                                         ))}

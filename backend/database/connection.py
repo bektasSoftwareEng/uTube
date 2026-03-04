@@ -122,6 +122,7 @@ def run_schema_migrations():
                 ("tags",         "TEXT"),           # JSON stored as TEXT in SQLite
                 ("visibility",   "TEXT DEFAULT 'public'"),
                 ("scheduled_at", "TEXT"),
+                ("resolutions",  "TEXT DEFAULT '{}'"),  # JSON map of available resolutions
             ]
             
             for col_name, col_def in video_columns:

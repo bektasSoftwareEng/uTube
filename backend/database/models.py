@@ -199,6 +199,9 @@ class Video(Base):
     # Semantic Search
     embedding = Column(JSON, nullable=True)  # Store the dense vector as a JSON array of floats
 
+    # Multi-Resolution Transcoding
+    resolutions = Column(JSON, nullable=True, default=dict)  # {"360p": "file_360p.mp4", "720p": "file_720p.mp4", ...}
+
     # Timestamps
     upload_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
