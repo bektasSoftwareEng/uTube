@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+
 import ApiClient from '../utils/ApiClient';
 import HeroSection from '../components/HeroSection';
 import VideoGrid, { getBlockedChannels, getBlockedVideosData } from '../components/VideoGrid';
@@ -13,7 +13,7 @@ const Home = () => {
     const [liveStreams, setLiveStreams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState("All");
-    const [showHero, setShowHero] = useState(true);
+    const [heroOpacity, setHeroOpacity] = useState(1);
     const [blockedChannels, setBlockedChannels] = useState(() => new Set(getBlockedChannels()));
     const [blockedVideos, setBlockedVideos] = useState(() => getBlockedVideosData());
     const [searchParams] = useSearchParams();
@@ -64,78 +64,25 @@ const Home = () => {
         };
     }, [searchQuery]);
 
-    // Scroll automation for Hero section
+    // Scroll-driven fade for Hero section
     useEffect(() => {
-        // Only run this automation if there's no search query
         if (searchQuery) return;
 
-        let lastScrollY = window.scrollY;
-        let isTransitioning = false;
-
-        const handleScroll = () => {
-            if (isTransitioning) {
-                lastScrollY = window.scrollY;
-                return;
-            }
-
-            const currentScrollY = window.scrollY;
-            const deltaY = currentScrollY - lastScrollY;
-
-            // If near top, always show
-            if (currentScrollY < 100) {
-                setShowHero(prev => {
-                    if (!prev) {
-                        isTransitioning = true;
-                        setTimeout(() => isTransitioning = false, 400);
-                        return true;
-                    }
-                    return prev;
-                });
-            }
-            // Scrolling down (hide if scrolled far enough)
-            else if (deltaY > 0 && currentScrollY > 150) {
-                setShowHero(prev => {
-                    if (prev) {
-                        // We are about to hide it. Lock the listener temporarily.
-                        isTransitioning = true;
-                        setTimeout(() => isTransitioning = false, 400);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                    return prev;
-                });
-            }
-            // Scrolling up
-            else if (deltaY < 0) {
-                setShowHero(prev => {
-                    if (!prev) {
-                        // We are about to show it. Lock the listener temporarily.
-                        isTransitioning = true;
-                        setTimeout(() => isTransitioning = false, 400);
-                        return true;
-                    }
-                    return prev;
-                });
-            }
-
-            lastScrollY = currentScrollY;
-        };
-
-        // Throttle scroll events slightly for performance
         let ticking = false;
-        const throttledScroll = () => {
-            if (!ticking) {
-                window.requestAnimationFrame(() => {
-                    handleScroll();
-                    ticking = false;
-                });
-                ticking = true;
-            }
+        const onScroll = () => {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(() => {
+                const raw = 1 - Math.min(window.scrollY / 400, 1);
+                const rounded = Math.round(raw * 100) / 100;
+                setHeroOpacity(prev => (prev !== rounded ? rounded : prev));
+                ticking = false;
+            });
         };
 
-        window.addEventListener('scroll', throttledScroll, { passive: true });
-        return () => window.removeEventListener('scroll', throttledScroll);
-    }, [searchQuery, selectedCategory]);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, [searchQuery]);
 
     // Apply global channel and video block filters first
     const visibleVideos = videos.filter(v =>
@@ -160,29 +107,24 @@ const Home = () => {
     return (
         <div className="min-h-screen pt-16 sm:pt-20">
             {!searchQuery && (
-                <AnimatePresence initial={false}>
-                    {showHero && (
-                        <motion.div
-                            key="top-section"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3, ease: 'easeInOut' }}
-                            style={{ overflow: 'hidden' }}
-                        >
-                            <CategoryBar
-                                selectedCategory={selectedCategory}
-                                onSelectCategory={setSelectedCategory}
-                            />
+                <div
+                    style={{
+                        opacity: heroOpacity,
+                        transition: 'opacity 0.3s ease-out',
+                        pointerEvents: heroOpacity === 0 ? 'none' : 'auto',
+                    }}
+                >
+                    <CategoryBar
+                        selectedCategory={selectedCategory}
+                        onSelectCategory={setSelectedCategory}
+                    />
 
-                            {selectedCategory === "All" && visibleTrendingVideos.length > 0 && (
-                                <div className="pt-2">
-                                    <HeroSection videos={visibleTrendingVideos} />
-                                </div>
-                            )}
-                        </motion.div>
+                    {selectedCategory === "All" && visibleTrendingVideos.length > 0 && (
+                        <div className="pt-2">
+                            <HeroSection videos={visibleTrendingVideos} />
+                        </div>
                     )}
-                </AnimatePresence>
+                </div>
             )}
 
             <div className="px-4 md:px-8 py-6 md:py-10 max-w-[1800px] mx-auto">

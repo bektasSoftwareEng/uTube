@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
@@ -39,6 +39,22 @@ const Register = () => {
     const [resending, setResending] = useState(false);
 
     const sanitize = (str) => str.replace(/[<>]/g, '');
+
+    // Restore OTP verification state from sessionStorage on mount
+    useEffect(() => {
+        try {
+            const saved = sessionStorage.getItem('utube_register_verify');
+            if (saved) {
+                const { email } = JSON.parse(saved);
+                if (email) {
+                    setVerificationEmail(email);
+                    setVerificationStep(true);
+                }
+            }
+        } catch {
+            sessionStorage.removeItem('utube_register_verify');
+        }
+    }, []);
 
     const handleChange = useCallback((e) => {
         const { name, value } = e.target;
@@ -125,6 +141,8 @@ const Register = () => {
                 setVerificationEmail(res.data.email);
                 setVerificationStep(true);
                 setError('');
+                // Persist verification state so page refresh returns to OTP screen
+                sessionStorage.setItem('utube_register_verify', JSON.stringify({ email: res.data.email }));
             } else {
                 // Fallback: if backend somehow returns a token (shouldn't happen)
                 navigate('/login');
@@ -166,6 +184,8 @@ const Register = () => {
 
             const { access_token, user_id, username } = res.data;
             if (access_token) {
+                // Clear verification state from sessionStorage
+                sessionStorage.removeItem('utube_register_verify');
                 localStorage.setItem(UTUBE_TOKEN, access_token);
 
                 // Fetch full profile from /me

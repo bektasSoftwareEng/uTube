@@ -2,6 +2,8 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
+from email.utils import formataddr
 import os
 import sys
 
@@ -20,6 +22,8 @@ def send_verification_email(to_email: str, code: str) -> bool:
     smtp_username = os.getenv("SMTP_USERNAME", "").strip()
     smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
     sender_email = os.getenv("SMTP_SENDER_EMAIL", "").strip() or smtp_username
+    display_name = os.getenv("SMTP_DISPLAY_NAME", "").strip()
+    formatted_sender = formataddr((str(Header(display_name, 'utf-8')), sender_email)) if display_name else sender_email
 
     # ── MOCK MODE ──
     if not smtp_server or not smtp_username or not smtp_password:
@@ -46,7 +50,7 @@ def send_verification_email(to_email: str, code: str) -> bool:
 
     # Build the email message
     msg = MIMEMultipart("alternative")
-    msg["From"] = sender_email
+    msg["From"] = formatted_sender
     msg["To"] = to_email
     msg["Subject"] = "Your uTube Verification Code"
     
