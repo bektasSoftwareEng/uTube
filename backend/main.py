@@ -17,9 +17,10 @@ if sys.stdout.encoding != 'utf-8':
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 import logging
 import asyncio
@@ -27,6 +28,7 @@ from contextlib import asynccontextmanager
 
 # Suppress all INFO-level logs -- only show warnings and errors
 logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router, chat_router
@@ -83,6 +85,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# ── Global Exception Handler: NEVER leak stack traces to the frontend ──
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}:\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."}
+    )
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -91,6 +103,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Custom middleware to ensure CORS headers on /storage static file responses
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class StaticFilesCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/storage"):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+app.add_middleware(StaticFilesCORSMiddleware)
 
 # Mount static files securely using explicit absolute path
 # We use /storage as the URL prefix to match urlHelper.js and config.py logic
@@ -101,11 +128,7 @@ os.makedirs(STORAGE_PATH, exist_ok=True)
 os.makedirs(os.path.join(STORAGE_PATH, "uploads", "thumbnails"), exist_ok=True)
 os.makedirs(os.path.join(STORAGE_PATH, "backgrounds"), exist_ok=True)
 
-# Mount with absolute path to /storage
 app.mount("/storage", StaticFiles(directory=STORAGE_PATH), name="storage")
-
-# DEBUG PRINT to terminal
-print(f"--- MOUNT SUCCESS: Serving files from {STORAGE_PATH} at /storage ---")
 
 # Include routers
 app.include_router(auth_router, prefix=API_PREFIX)

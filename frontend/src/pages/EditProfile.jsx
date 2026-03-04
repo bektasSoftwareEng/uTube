@@ -114,7 +114,7 @@ const EditProfile = () => {
             setTimeout(() => navigate('/profile'), 1500);
 
         } catch (err) {
-            console.error(err);
+            console.warn('Profile update failed.');
             const errorMsg = err.response?.data?.detail || "Failed to update profile";
             setError(errorMsg);
         } finally {
@@ -142,7 +142,7 @@ const EditProfile = () => {
             setSuccess("Email successfully verified and updated!");
             setTimeout(() => navigate('/profile'), 1500);
         } catch (err) {
-            console.error(err);
+            console.warn('Email verification failed.');
             setError(err.response?.data?.detail || "Invalid or expired verification code.");
         } finally {
             setLoading(false);

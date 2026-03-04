@@ -229,7 +229,7 @@ const Navbar = () => {
 
                             {/* Welcome Text */}
                             <span className="hidden sm:block text-sm font-black text-white italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
-                                Welcome, <span className="text-primary">{user?.username || 'User'}</span>
+                                Welcome, <span className="text-primary truncate max-w-[150px] inline-block align-bottom">{user?.username || 'User'}</span>
                             </span>
 
                             {/* ── Notification Bell (functional) ── */}
@@ -386,7 +386,7 @@ const Navbar = () => {
                                             </Link>
 
                                             <Link
-                                                to={`/channel/@${user?.username}`}
+                                                to={`/channel/@${encodeURIComponent(user?.username)}`}
                                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
                                                 onClick={() => setIsMenuOpen(false)}
                                             >

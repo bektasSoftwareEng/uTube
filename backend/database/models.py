@@ -38,7 +38,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # User Credentials
-    username = Column(String(50), unique=True, nullable=False, index=True)
+    username = Column(String(25), unique=True, nullable=False, index=True)
     email = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     
@@ -193,8 +193,8 @@ class Video(Base):
     view_count = Column(Integer, default=0, nullable=False, index=True)  # Indexed for trending
     duration = Column(Integer, nullable=True)  # Duration in seconds
     
-    # Status (processing, published, failed)
-    status = Column(String(20), default="processing", nullable=False, index=True)
+    # Status (draft, processing, published, failed)
+    status = Column(String(20), default="draft", nullable=False, index=True)
 
     # Semantic Search
     embedding = Column(JSON, nullable=True)  # Store the dense vector as a JSON array of floats

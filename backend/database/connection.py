@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import logging
+from fastapi import HTTPException
 
 from backend.core.config import DATABASE_URL
 
@@ -85,6 +86,8 @@ def get_db() -> Generator[Session, None, None]:
     try:
         logger.debug("Database session created")
         yield db
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Database session error: {e}")
         db.rollback()

@@ -207,7 +207,7 @@ const Home = () => {
                             {visibleLiveStreams.map(stream => (
                                 <Link
                                     key={stream.id}
-                                    to={`/watch/${stream.username}`}
+                                    to={`/watch/${encodeURIComponent(stream.username)}`}
                                     className="snap-start shrink-0 w-72 md:w-80 group"
                                 >
                                     <div className="relative aspect-video rounded-xl overflow-hidden mb-3 bg-white/5 ring-1 ring-white/10">

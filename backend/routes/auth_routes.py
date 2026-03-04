@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional, Union
 from datetime import datetime, timedelta
 import shutil
@@ -59,7 +59,7 @@ security = HTTPBearer()
 
 class UserRegister(BaseModel):
     """Request model for user registration."""
-    username: str = Field(..., min_length=3, max_length=50, description="Username (3-50 characters)")
+    username: str = Field(..., min_length=3, max_length=25, pattern="^[a-zA-Z0-9_-]+$", description="Username (3-25 chars, letters/numbers/underscore/hyphen only)")
     email: EmailStr = Field(..., description="Valid email address")
     password: str = Field(..., min_length=8, description="Password (min 8 characters)")
     
@@ -89,12 +89,18 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     """Request model for user profile update."""
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    username: Optional[str] = Field(None, min_length=3, max_length=25, pattern="^[a-zA-Z0-9_-]+$")
     email: Optional[EmailStr] = Field(None)
     channel_description: Optional[str] = Field(None)
     channel_banner_url: Optional[str] = Field(None)
     password: Optional[str] = Field(None, min_length=8)
     new_password: Optional[str] = Field(None, min_length=8)
+
+    @validator('channel_description', pre=True, always=True)
+    def sanitize_description(cls, v):
+        if v is None: return v
+        import re
+        return re.sub(r'<[^>]+>', '', str(v)).strip()
 
 
 class LiveMetadataUpdate(BaseModel):
@@ -102,6 +108,12 @@ class LiveMetadataUpdate(BaseModel):
     title: str = Field(..., max_length=100)
     category: str = Field(..., max_length=50)
     studio_bg_url: Optional[str] = Field(None, max_length=500)
+
+    @validator('title', 'category', pre=True, always=True)
+    def sanitize_text(cls, v):
+        if v is None: return v
+        import re
+        return re.sub(r'<[^>]+>', '', str(v)).strip()
 
 
 class Token(BaseModel):
@@ -346,8 +358,8 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     existing_username = db.query(User).filter(User.username == user_data.username).first()
     if existing_username:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username is already taken."
         )
     
     # Validate password strength
@@ -669,11 +681,11 @@ def update_user_profile(
 
     # 1. Update Username
     if username and username != current_user.username:
-        existing_username = db.query(User).filter(User.username == username).first()
+        existing_username = db.query(User).filter(User.username == username, User.id != current_user.id).first()
         if existing_username:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username is already taken."
             )
         current_user.username = username
         

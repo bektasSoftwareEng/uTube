@@ -21,7 +21,7 @@ def get_sentence_transformer():
                     _model = SentenceTransformer('all-MiniLM-L6-v2')
                     logger.info("Successfully loaded sentence-transformers model!")
                 except (ImportError, Exception) as e:
-                    logger.warning(f"Embedding service UNAVAILABLE: {e}. AI search features will be disabled.")
+                    logger.info(f"Embedding service not available: {e}. Lexical search fallback is active.")
                     _model = "UNAVAILABLE"
     if _model == "UNAVAILABLE":
         return None

@@ -49,7 +49,7 @@ ApiClient.interceptors.request.use(
                             processQueue(null, newToken);
                         } catch (err) {
                             processQueue(err, null);
-                            console.error('Core token refresh utterly failed. Forcing logout.', err);
+                            console.warn('Session expired. Please log in again.');
                             localStorage.removeItem(UTUBE_TOKEN);
                             localStorage.removeItem(UTUBE_USER);
                             window.location.href = '/login';
@@ -73,6 +73,14 @@ ApiClient.interceptors.request.use(
             }
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // CRITICAL: If the request body is FormData, delete the default
+        // 'application/json' Content-Type so the browser auto-sets
+        // 'multipart/form-data' with the correct boundary.
+        if (config.data instanceof FormData) {
+            delete config.headers['Content-Type'];
+        }
+
         return config;
     },
     (error) => Promise.reject(error)

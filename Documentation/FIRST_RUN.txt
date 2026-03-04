@@ -7,3 +7,8 @@ HER GİTHUB PULL YAPTIĞINIZDA BUNLARI SIRAYLA ÇALIŞTIRIN!!!
     cd backend
     pip install -r requirements.txt
     cd ..
+
+    Terminal Kill komutları
+    taskkill /F /IM python.exe /T
+    taskkill /F /IM node.exe /T
+    taskkill /F /IM npm.exe /T
