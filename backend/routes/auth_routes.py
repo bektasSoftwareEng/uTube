@@ -263,6 +263,13 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Block unverified users from accessing protected endpoints
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before continuing."
+        )
+    
     return user
 
 
@@ -346,21 +353,32 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
             detail=email_error
         )
     
-    # Check if email already exists
+    # Check if email already exists — allow overwriting unverified records
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
+        if existing_user.is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        else:
+            # Remove stale unverified record so the email can be reused
+            db.delete(existing_user)
+            db.flush()
     
-    # Check if username already exists
+    # Check if username already exists — allow overwriting unverified records
     existing_username = db.query(User).filter(User.username == user_data.username).first()
+    
     if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username is already taken."
-        )
+        if existing_username.is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username is already taken."
+            )
+        else:
+            # Remove stale unverified record so the username can be reused
+            db.delete(existing_username)
+            db.flush()
     
     # Validate password strength
     is_valid, error_msg = validate_password_strength(user_data.password)
@@ -847,6 +865,84 @@ def update_channel_profile(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to upload banner image: {str(e)}"
             )
+
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {str(e)}"
+        )
+
+    return build_user_response(current_user, db)
+
+
+@router.delete("/me/banner", response_model=UserResponse)
+def remove_channel_banner(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove the user's channel banner image and revert to the default gradient.
+    Deletes the file from disk and sets channel_banner_url to None.
+    """
+    if not current_user.channel_banner_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No banner image to remove"
+        )
+
+    # Delete the file from disk
+    try:
+        old_file = BANNERS_DIR / current_user.channel_banner_url
+        if old_file.exists():
+            old_file.unlink()
+    except Exception as e:
+        logger.warning(f"Failed to delete banner file: {e}")
+
+    # Clear the database field
+    current_user.channel_banner_url = None
+
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {str(e)}"
+        )
+
+    return build_user_response(current_user, db)
+
+
+@router.delete("/me/profile-picture", response_model=UserResponse)
+def remove_profile_picture(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove the user's profile picture and revert to the default avatar.
+    Deletes the file from disk and sets profile_image to None.
+    """
+    if not current_user.profile_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile picture to remove"
+        )
+
+    # Delete the file from disk
+    try:
+        old_file = AVATARS_DIR / current_user.profile_image
+        if old_file.exists():
+            old_file.unlink()
+    except Exception as e:
+        logger.warning(f"Failed to delete profile picture file: {e}")
+
+    # Clear the database field
+    current_user.profile_image = None
 
     try:
         db.commit()

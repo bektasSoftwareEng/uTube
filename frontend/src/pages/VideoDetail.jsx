@@ -80,6 +80,10 @@ const VideoDetail = () => {
     const [expandedReplies, setExpandedReplies] = useState({});
     const [replySubmitting, setReplySubmitting] = useState(false);
 
+    // ── Resolution State ──
+    const [availableResolutions, setAvailableResolutions] = useState(null);
+    const [transcodeStatus, setTranscodeStatus] = useState('pending');
+
     // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
         try {
@@ -276,6 +280,38 @@ const VideoDetail = () => {
             window.removeEventListener('utube_video_blocked', handleBlockEvent);
         };
     }, []);
+
+    // ══════════════════════════════════════════════════
+    // Fetch Resolutions (with polling while transcoding)
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        if (!video) return;
+        let resPollInterval;
+
+        const fetchResolutions = async () => {
+            try {
+                const res = await ApiClient.get(`/videos/${id}/resolutions`);
+                setAvailableResolutions(res.data.resolutions || null);
+                setTranscodeStatus(res.data.status);
+
+                // Stop polling once transcoding is done
+                if (res.data.status !== 'processing' && resPollInterval) {
+                    clearInterval(resPollInterval);
+                    resPollInterval = null;
+                }
+            } catch (err) {
+                console.warn('Could not fetch resolutions:', err);
+            }
+        };
+
+        fetchResolutions();
+        // Poll every 10s while transcoding
+        resPollInterval = setInterval(fetchResolutions, 10000);
+
+        return () => {
+            if (resPollInterval) clearInterval(resPollInterval);
+        };
+    }, [video, id]);
 
     // ══════════════════════════════════════════════════
     // Handlers
@@ -525,6 +561,8 @@ const VideoDetail = () => {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
+                            availableResolutions={availableResolutions}
+                            transcodeStatus={transcodeStatus}
                         />
                     </div>
 
