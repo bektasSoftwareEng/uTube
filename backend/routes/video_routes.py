@@ -20,6 +20,7 @@ import os
 import shutil
 import json
 import logging
+import threading
 from pathlib import Path
 
 # Set up logging
@@ -41,6 +42,8 @@ from backend.core.video_processor import (
 from backend.services.embedding_service import generate_embedding, compute_cosine_similarity
 from backend.core.config import VIDEOS_DIR, THUMBNAILS_DIR, PREVIEWS_DIR, TEMP_UPLOADS_DIR
 from backend.core.security import secure_resolve
+from backend.services.transcoding_service import transcode_video
+from backend.database.connection import SessionLocal
 
 # Create router
 router = APIRouter(prefix="/videos", tags=["Videos"])
@@ -92,6 +95,7 @@ class VideoListResponse(BaseModel):
     like_count: int = 0
     status: str = "published"
     visibility: str = "public"
+    resolutions: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -113,6 +117,8 @@ class VideoResponse(BaseModel):
     duration: Optional[int] = None
     like_count: int = 0
     author: AuthorResponse
+    resolutions: Optional[dict] = None
+    status: str = "published"
     
     class Config:
         from_attributes = True
@@ -184,10 +190,33 @@ def format_video_response(video: Video, include_duration: bool = False) -> dict:
             "username": video.author.username,
             "profile_image": video.author.profile_image,
             "video_count": video.author.videos.count() if video.author else 0
-        }
+        },
+        "resolutions": _parse_resolutions(video),
+        "status": video.status or "published",
     }
     
     return response
+
+
+def _parse_resolutions(video) -> dict:
+    """Parse video.resolutions into a URL-mapped dict."""
+    raw = video.resolutions
+    # Parse stringified JSON if the DB returned a string
+    while isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not raw:
+        return None
+    
+    if not isinstance(raw, dict) or not raw:
+        return None
+    
+    result = {}
+    for label, filename in raw.items():
+        result[label] = f"/storage/uploads/videos/{filename}"
+    return result
 
 
 # ============================================================================
@@ -410,6 +439,7 @@ def get_all_videos(
             like_count=video.like_count,
             status=video.status,
             visibility=video.visibility,
+            resolutions=_parse_resolutions(video),
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,
@@ -746,6 +776,18 @@ async def update_video(
                 print(f"[CLEANUP] Deleted residue temp source: {video.video_filename}")
              except Exception as e:
                 print(f"[CLEANUP WARNING] Residue cleanup failed: {e}")
+
+        # Trigger background transcoding when publishing
+        if perm_video_path.exists():
+            def _run_transcode(vid=video.id, src=str(perm_video_path)):
+                transcode_video(
+                    video_id=vid,
+                    source_path=src,
+                    videos_dir=str(VIDEOS_DIR),
+                    db_session_factory=SessionLocal
+                )
+            threading.Thread(target=_run_transcode, daemon=True).start()
+            print(f"[TRANSCODE] Background transcoding started for video {video.id}")
     
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None
@@ -818,3 +860,31 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
         )
         for video in videos
     ]
+
+
+@router.get("/{video_id}/resolutions")
+def get_video_resolutions(
+    video_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get available resolutions and transcoding status for a video."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    
+    resolutions = _parse_resolutions(video)
+    
+    # Determine transcoding status
+    if video.status == 'transcoding':
+        transcode_status = 'processing'
+    elif resolutions and len(resolutions) > 1:
+        transcode_status = 'ready'
+    elif resolutions and len(resolutions) == 1:
+        transcode_status = 'ready'  # Only original available
+    else:
+        transcode_status = 'pending'
+    
+    return {
+        "status": transcode_status,
+        "resolutions": resolutions or {"original": get_video_url(video.video_filename)}
+    }
