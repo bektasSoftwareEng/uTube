@@ -116,7 +116,7 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
             return ['Auto'];
         }
         // Sort resolutions: 1080p, 720p, 360p, then original
-        const order = ['1080p', '720p', '480p', '360p', 'original'];
+        const order = ['1080p', '720p', '480p', '360p', '144p', 'original'];
         const keys = Object.keys(availableResolutions);
         const sorted = order.filter(k => keys.includes(k));
         // Add any keys not in the predefined order

@@ -2,7 +2,7 @@
 Transcoding Service
 -------------------
 Background video transcoding using FFmpeg.
-Generates multiple resolution variants (360p, 720p, 1080p) for adaptive playback.
+Generates multiple resolution variants (144p, 360p, 720p, 1080p) for adaptive playback.
 """
 
 import subprocess
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Resolution targets: label → (width, height)
 RESOLUTION_TARGETS = {
+    "144p": (256, 144),
     "360p": (640, 360),
     "720p": (1280, 720),
     "1080p": (1920, 1080),
