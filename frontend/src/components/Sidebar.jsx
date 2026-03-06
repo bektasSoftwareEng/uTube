@@ -150,25 +150,47 @@ const VideoItem = ({ video, onAction, actionTitle }) => {
 // ── Channel Item — mirrors avatar style from VideoCard ──
 const ChannelItem = ({ channel, onAction, actionTitle }) => {
     const username = channel.author?.username;
+    const channelId = channel.author?.id;
     return (
         <div className="flex items-center gap-3 px-4 py-2 mx-1 rounded-xl hover:bg-white/[0.06] transition-colors group cursor-default">
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-surface shrink-0 overflow-hidden border border-white/10">
-                <img
-                    src={getAvatarUrl(channel.author?.profile_image, username)}
-                    alt={username}
-                    className="w-full h-full object-cover"
-                    onError={e => {
-                        e.target.src = `https://ui-avatars.com/api/?name=${username || 'U'}&background=random&color=fff`;
-                    }}
-                />
-            </div>
+            {/* Avatar — link to channel */}
+            {channelId ? (
+                <Link to={`/channel/${channelId}`} className="w-8 h-8 rounded-full bg-surface shrink-0 overflow-hidden border border-white/10 block">
+                    <img
+                        src={getAvatarUrl(channel.author?.profile_image, username)}
+                        alt={username}
+                        className="w-full h-full object-cover"
+                        onError={e => {
+                            e.target.src = `https://ui-avatars.com/api/?name=${username || 'U'}&background=random&color=fff`;
+                        }}
+                    />
+                </Link>
+            ) : (
+                <div className="w-8 h-8 rounded-full bg-surface shrink-0 overflow-hidden border border-white/10">
+                    <img
+                        src={getAvatarUrl(channel.author?.profile_image, username)}
+                        alt={username}
+                        className="w-full h-full object-cover"
+                        onError={e => {
+                            e.target.src = `https://ui-avatars.com/api/?name=${username || 'U'}&background=random&color=fff`;
+                        }}
+                    />
+                </div>
+            )}
 
-            {/* Name + online dot */}
+            {/* Name — link to channel */}
             <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-white/70 group-hover:text-white transition-colors truncate">
-                    {username || 'Unknown'}
-                </p>
+                {channelId ? (
+                    <Link to={`/channel/${channelId}`} className="block">
+                        <p className="text-[11px] font-bold text-white/70 group-hover:text-white transition-colors truncate">
+                            {username || 'Unknown'}
+                        </p>
+                    </Link>
+                ) : (
+                    <p className="text-[11px] font-bold text-white/70 group-hover:text-white transition-colors truncate">
+                        {username || 'Unknown'}
+                    </p>
+                )}
             </div>
 
             {/* Red accent arrow on hover acting as an action button */}

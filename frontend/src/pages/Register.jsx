@@ -23,6 +23,8 @@ const Register = () => {
         confirmPassword: ''
     });
 
+    const [usernameTaken, setUsernameTaken] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [emailChecking, setEmailChecking] = useState(false);
     const [isEmailVerified, setIsEmailVerified] = useState(null); // null = unverified, true = ok, false = bad
@@ -59,7 +61,11 @@ const Register = () => {
     const handleChange = useCallback((e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-    }, []);
+
+        if (name === 'username' && usernameTaken) {
+            setUsernameTaken(false);
+        }
+    }, [usernameTaken]);
 
     const handleBlur = useCallback(async (e) => {
         const { name, value } = e.target;
@@ -160,7 +166,12 @@ const Register = () => {
                     errorMessage = JSON.stringify(detail);
                 }
             }
-            setError(errorMessage);
+
+            if (err.response?.status === 400 && errorMessage === "Username is already taken.") {
+                setUsernameTaken(true);
+            } else {
+                setError(errorMessage);
+            }
         } finally {
             setLoading(false);
         }
@@ -241,6 +252,12 @@ const Register = () => {
 
     const inputBorderClass = (fieldName, isValid, customOverride = null) => {
         if (!touched[fieldName] || formData[fieldName] === '') return 'border-gray-800';
+
+        // Explicitly format unique username error
+        if (fieldName === 'username' && usernameTaken) {
+            return 'border-red-500/50 shadow-[0_0_15px_rgba(229,9,20,0.15)]';
+        }
+
         if (customOverride !== null) {
             return customOverride ? 'border-green-500/50' : 'border-red-500/50';
         }
@@ -362,11 +379,15 @@ const Register = () => {
                                             className={`w-full bg-white/5 border ${inputBorderClass('username', usernameValid)} text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-[#e50914] focus:bg-white/10 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)] transition-all duration-300 placeholder-gray-600 backdrop-blur-xl`}
                                             placeholder="Create a unique username"
                                         />
-                                        <FieldHint
-                                            show={touched.username && formData.username.length > 0}
-                                            valid={usernameValid}
-                                            text={usernameValid ? 'Looks good' : 'Only letters, numbers, _ and - (3–25 chars)'}
-                                        />
+                                        {usernameTaken ? (
+                                            <p className="text-red-500 text-xs mt-1 ml-1 font-medium">This username is already taken. Please choose another.</p>
+                                        ) : (
+                                            <FieldHint
+                                                show={touched.username && formData.username.length > 0}
+                                                valid={usernameValid}
+                                                text={usernameValid ? 'Looks good' : 'Only letters, numbers, _ and - (3–25 chars)'}
+                                            />
+                                        )}
                                     </div>
 
                                     {/* Email with Live Backend Verification */}

@@ -366,19 +366,14 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
             db.delete(existing_user)
             db.flush()
     
-    # Check if username already exists — allow overwriting unverified records
+    # Check if username already exists — DO NOT allow overwriting even if unverified (usernames are reserved)
     existing_username = db.query(User).filter(User.username == user_data.username).first()
     
     if existing_username:
-        if existing_username.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username is already taken."
-            )
-        else:
-            # Remove stale unverified record so the username can be reused
-            db.delete(existing_username)
-            db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username is already taken."
+        )
     
     # Validate password strength
     is_valid, error_msg = validate_password_strength(user_data.password)
@@ -702,7 +697,7 @@ def update_user_profile(
         existing_username = db.query(User).filter(User.username == username, User.id != current_user.id).first()
         if existing_username:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username is already taken."
             )
         current_user.username = username
