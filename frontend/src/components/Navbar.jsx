@@ -385,7 +385,7 @@ const Navbar = () => {
                                             </Link>
 
                                             <Link
-                                                to={`/channel/@${encodeURIComponent(user?.username)}`}
+                                                to="/my-channel"
                                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
                                                 onClick={() => setIsMenuOpen(false)}
                                             >

@@ -742,12 +742,11 @@ const WatchPage = () => {
                             <h2 className="text-sm font-bold tracking-widest uppercase text-zinc-400 mb-4">Recommended</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 {recommendedVideos.map(video => (
-                                    <Link
+                                    <div
                                         key={video.id}
-                                        to={`/video/${video.id}`}
                                         className="group rounded-xl overflow-hidden border border-zinc-800 hover:border-zinc-600 transition-all bg-zinc-900/50 hover:bg-zinc-800/50"
                                     >
-                                        <div className="aspect-video relative overflow-hidden">
+                                        <Link to={`/video/${video.id}`} className="block aspect-video relative overflow-hidden">
                                             <img
                                                 src={getValidUrl(video.thumbnail_url, THUMBNAIL_FALLBACK)}
                                                 alt={video.title}
@@ -759,12 +758,24 @@ const WatchPage = () => {
                                                     {video.view_count.toLocaleString()} views
                                                 </span>
                                             )}
-                                        </div>
+                                        </Link>
                                         <div className="p-3">
-                                            <p className="text-sm font-semibold text-zinc-200 line-clamp-2 group-hover:text-white transition-colors">{video.title}</p>
-                                            <p className="text-xs text-zinc-500 mt-1">{video.author?.username || 'Unknown'}</p>
+                                            <Link to={`/video/${video.id}`}>
+                                                <p className="text-sm font-semibold text-zinc-200 line-clamp-2 group-hover:text-white transition-colors">{video.title}</p>
+                                            </Link>
+                                            {video.author?.id ? (
+                                                <Link
+                                                    to={`/channel/${video.author.id}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="text-xs text-zinc-500 mt-1 hover:text-zinc-300 transition-colors block"
+                                                >
+                                                    {video.author?.username || 'Unknown'}
+                                                </Link>
+                                            ) : (
+                                                <p className="text-xs text-zinc-500 mt-1">{video.author?.username || 'Unknown'}</p>
+                                            )}
                                         </div>
-                                    </Link>
+                                    </div>
                                 ))}
                             </div>
                         </div>

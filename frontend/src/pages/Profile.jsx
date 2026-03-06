@@ -136,7 +136,7 @@ const Profile = () => {
                                     Edit Profile
                                 </button>
                                 <button
-                                    onClick={() => navigate(`/channel/@${encodeURIComponent(user.username)}`)}
+                                    onClick={() => navigate('/my-channel')}
                                     className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
                                     style={{ color: 'var(--primary)' }}
                                 >

@@ -14,6 +14,7 @@ import WatchPage from './pages/WatchPage';
 import Dashboard from './pages/Dashboard';
 import BlockedVideos from './pages/BlockedVideos';
 import MyChannel from './pages/MyChannel';
+import Channel from './pages/Channel';
 import { UTUBE_TOKEN } from './utils/authConstants'
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 
@@ -89,7 +90,8 @@ const AppLayout = () => {
                     <Route path="/live" element={<ProtectedRoute><LiveStudio /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/blocked" element={<ProtectedRoute><BlockedVideos /></ProtectedRoute>} />
-                    <Route path="/channel/:username" element={<ProtectedRoute><MyChannel /></ProtectedRoute>} />
+                    <Route path="/my-channel" element={<ProtectedRoute><MyChannel /></ProtectedRoute>} />
+                    <Route path="/channel/:id" element={<Channel />} />
                 </Routes>
             </main>
         </div>

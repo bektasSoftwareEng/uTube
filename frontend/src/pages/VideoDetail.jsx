@@ -84,6 +84,9 @@ const VideoDetail = () => {
     const [availableResolutions, setAvailableResolutions] = useState(null);
     const [transcodeStatus, setTranscodeStatus] = useState('pending');
 
+    // ── Channel Subscriber Count (author) ──
+    const [authorSubCount, setAuthorSubCount] = useState(null);
+
     // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
         try {
@@ -188,6 +191,23 @@ const VideoDetail = () => {
             if (pollInterval) clearInterval(pollInterval);
         };
     }, [id]);
+
+    // ══════════════════════════════════════════════════
+    // Fetch Author Stats (subscriber_count)
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        const fetchAuthorStats = async () => {
+            if (!video?.author?.username) return;
+            try {
+                const res = await ApiClient.get(`/auth/profile/${encodeURIComponent(video.author.username)}`);
+                setAuthorSubCount(res.data.subscriber_count ?? 0);
+            } catch (err) {
+                console.warn('Could not fetch author stats:', err);
+            }
+        };
+
+        fetchAuthorStats();
+    }, [video]);
 
     // ══════════════════════════════════════════════════
     // Fetch Like/Dislike Status (requires auth)
@@ -336,10 +356,16 @@ const VideoDetail = () => {
             if (isSubscribed) {
                 await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(false);
+                setAuthorSubCount(prev =>
+                    prev == null ? prev : Math.max(0, prev - 1)
+                );
                 toast.success('Abonelikten çıkıldı');
             } else {
                 await ApiClient.post(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(true);
+                setAuthorSubCount(prev =>
+                    prev == null ? prev : prev + 1
+                );
                 toast.success('Abone olundu!');
             }
         } catch (error) {
@@ -563,6 +589,8 @@ const VideoDetail = () => {
                             }}
                             availableResolutions={availableResolutions}
                             transcodeStatus={transcodeStatus}
+                            title={video.title}
+                            channelName={video.author?.username}
                         />
                     </div>
 
@@ -570,20 +598,27 @@ const VideoDetail = () => {
                     <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-tight">{video.title}</h1>
                     <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-white/10 mb-6 gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface">
+                            <Link
+                                to={`/channel/${video.author?.id}`}
+                                className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface shrink-0 hover:ring-2 hover:ring-white/30 transition-all"
+                            >
                                 <img
                                     src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                                     alt={video.author?.username}
                                     className="w-full h-full object-cover"
                                     onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'User'}&background=random&color=fff`; }}
                                 />
+                            </Link>
 
-                            </div>
-
-                            <div>
+                            <Link
+                                to={`/channel/${video.author?.id}`}
+                                className="hover:underline underline-offset-2"
+                            >
                                 <p className="font-bold">{video.author?.username}</p>
-                                <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
-                            </div>
+                                <p className="text-white/40 text-xs">
+                                    {(authorSubCount ?? 0).toLocaleString()} subscribers
+                                </p>
+                            </Link>
                             {isOwnChannel ? (
                                 <Link
                                     to="/edit-profile"

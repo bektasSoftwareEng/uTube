@@ -63,7 +63,6 @@ class AuthorResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class VideoUploadResponse(BaseModel):
     """Response model for video upload."""
     id: int
@@ -99,6 +98,22 @@ class VideoListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ChannelSearchResponse(BaseModel):
+    id: int
+    username: str
+    profile_image: Optional[str] = None
+    subscriber_count: int = 0
+    video_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class CombinedSearchResponse(BaseModel):
+    channels: List[ChannelSearchResponse]
+    videos: List[VideoListResponse]
 
 
 class VideoResponse(BaseModel):
@@ -522,7 +537,7 @@ def get_all_videos(
         for video in videos
     ]
 
-@router.get("/semantic-search", response_model=List[VideoListResponse])
+@router.get("/semantic-search", response_model=CombinedSearchResponse)
 def semantic_search(
     query: str,
     limit: int = 12,
@@ -531,9 +546,10 @@ def semantic_search(
     """
     Performs context-aware local semantic search using sentence-transformers and numpy.
     Falls back to powerful lexical search if ML returns nothing.
+    Now includes user channel matches.
     """
     if not query.strip():
-        return []
+        return CombinedSearchResponse(channels=[], videos=[])
 
     from sqlalchemy import cast, String
 
@@ -603,8 +619,21 @@ def semantic_search(
             )
         ).order_by(Video.view_count.desc()).limit(limit).all()
 
-    # ── PHASE 3: Format and return ──
-    return [
+    # ── PHASE 3: Search for matching Channels ──
+    channels_query = db.query(User).filter(User.username.ilike(f"%{clean_query}%")).limit(5).all()
+    channels_list = [
+        ChannelSearchResponse(
+            id=user.id,
+            username=user.username,
+            profile_image=user.profile_image,
+            subscriber_count=user.followers.count(),
+            video_count=user.videos.count()
+        )
+        for user in channels_query
+    ]
+
+    # ── PHASE 4: Format and return ──
+    videos_list = [
         VideoListResponse(
             id=video.id,
             title=video.title,
@@ -627,6 +656,8 @@ def semantic_search(
         )
         for video in top_videos
     ]
+    
+    return CombinedSearchResponse(channels=channels_list, videos=videos_list)
 
 @router.get("/history", response_model=List[VideoListResponse])
 def get_video_history(

@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router, chat_router
+from backend.routes.channel_routes import router as channel_router
 from backend.routes.stream_routes import router as stream_router
 from backend.database import init_db
 from backend.services.cleanup_service import startup_cleanup, cleanup_loop
@@ -137,6 +138,7 @@ app.include_router(trending_router, prefix=API_PREFIX)
 app.include_router(video_router, prefix=API_PREFIX)
 app.include_router(comment_router, prefix=API_PREFIX)
 app.include_router(like_router, prefix=API_PREFIX)
+app.include_router(channel_router, prefix=API_PREFIX)
 app.include_router(recommendation_router, prefix=API_PREFIX)
 app.include_router(stream_router, prefix=f"{API_PREFIX}/streams")
 

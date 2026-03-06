@@ -6,9 +6,11 @@ import HeroSection from '../components/HeroSection';
 import VideoGrid, { getBlockedChannels, getBlockedVideosData } from '../components/VideoGrid';
 
 import CategoryBar from '../components/CategoryBar';
+import ChannelSearchCard from '../components/ChannelSearchCard';
 
 const Home = () => {
     const [videos, setVideos] = useState([]);
+    const [channels, setChannels] = useState([]);
     const [trendingVideos, setTrendingVideos] = useState([]);
     const [liveStreams, setLiveStreams] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,7 +32,8 @@ const Home = () => {
                     response = await ApiClient.get('/videos/semantic-search', {
                         params: { query: searchQuery }
                     });
-                    setVideos(response.data);
+                    setVideos(response.data.videos || []);
+                    setChannels(response.data.channels || []);
                 } else {
                     let trendingResponse;
                     [response, liveResponse, trendingResponse] = await Promise.all([
@@ -99,6 +102,8 @@ const Home = () => {
         !blockedChannels.has(v.author?.id) &&
         !blockedVideos.some(bv => bv.id === v.id)
     );
+
+    const visibleChannels = channels.filter(c => !blockedChannels.has(c.id));
 
     const filteredVideos = selectedCategory === "All"
         ? visibleVideos
@@ -192,16 +197,30 @@ const Home = () => {
                     </div>
                 )}
 
-                {filteredVideos.length === 0 && !loading ? (
+                {filteredVideos.length === 0 && visibleChannels.length === 0 && !loading ? (
                     <div className="py-20 text-center text-white/50 w-full col-span-full">
                         <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <p className="text-lg font-bold">No videos found</p>
+                        <p className="text-lg font-bold">No results found</p>
                         <p className="text-sm mt-1">Try adjusting your search terms</p>
                     </div>
                 ) : (
-                    <VideoGrid videos={filteredVideos} loading={loading} />
+                    <div className="flex flex-col gap-6">
+                        {searchQuery && visibleChannels.length > 0 && (
+                            <div className="flex flex-col gap-4 mb-4">
+                                {visibleChannels.map(channel => (
+                                    <ChannelSearchCard key={channel.id} channel={channel} />
+                                ))}
+                            </div>
+                        )}
+                        {searchQuery && visibleChannels.length > 0 && filteredVideos.length > 0 && (
+                            <hr className="my-6 border-gray-700" />
+                        )}
+                        {filteredVideos.length > 0 && (
+                            <VideoGrid videos={filteredVideos} loading={loading} isListLayout={!!searchQuery} />
+                        )}
+                    </div>
                 )}
             </div>
         </div>
