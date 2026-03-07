@@ -2,7 +2,7 @@
 Transcoding Service
 -------------------
 Background video transcoding using FFmpeg.
-Generates multiple resolution variants (360p, 720p, 1080p) for adaptive playback.
+Generates multiple resolution variants (144p, 360p, 720p, 1080p) for adaptive playback.
 """
 
 import subprocess
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Resolution targets: label → (width, height)
 RESOLUTION_TARGETS = {
+    "144p": (256, 144),
     "360p": (640, 360),
     "720p": (1280, 720),
     "1080p": (1920, 1080),
@@ -23,20 +24,27 @@ RESOLUTION_TARGETS = {
 
 
 def get_ffmpeg_path() -> str:
-    """Find FFmpeg executable, falling back to Conda environment path."""
+    """
+    Find FFmpeg executable via system PATH.
+    Returns the resolved path if found, otherwise returns 'ffmpeg'
+    so that downstream calls produce a clear FileNotFoundError.
+    """
     path = shutil.which("ffmpeg")
-    if path: return path
-    conda_path = r"C:\Users\emire\anaconda3\envs\uTube\Library\bin\ffmpeg.exe"
-    if os.path.exists(conda_path): return conda_path
+    if path:
+        return path
+    logger.warning("FFmpeg not found in system PATH.")
     return "ffmpeg"
 
 
 def get_ffprobe_path() -> str:
-    """Find FFprobe executable, falling back to Conda environment path."""
+    """
+    Find FFprobe executable via system PATH.
+    Returns the resolved path if found, otherwise returns 'ffprobe'.
+    """
     path = shutil.which("ffprobe")
-    if path: return path
-    conda_path = r"C:\Users\emire\anaconda3\envs\uTube\Library\bin\ffprobe.exe"
-    if os.path.exists(conda_path): return conda_path
+    if path:
+        return path
+    logger.warning("FFprobe not found in system PATH.")
     return "ffprobe"
 
 
@@ -50,6 +58,37 @@ def is_ffmpeg_available() -> bool:
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
+
+
+def check_ffmpeg_on_startup():
+    """
+    Called at module load to log FFmpeg availability.
+    Provides an immediate, visible warning in the terminal if FFmpeg is missing.
+    """
+    ffmpeg_path = shutil.which("ffmpeg")
+    ffprobe_path = shutil.which("ffprobe")
+
+    if ffmpeg_path and ffprobe_path:
+        print(f"✅ [STARTUP] FFmpeg found: {ffmpeg_path}")
+        print(f"✅ [STARTUP] FFprobe found: {ffprobe_path}")
+        logger.info(f"FFmpeg found: {ffmpeg_path}")
+        logger.info(f"FFprobe found: {ffprobe_path}")
+    else:
+        if not ffmpeg_path:
+            print("=" * 70)
+            print("⚠️  FFmpeg is not installed or not found in PATH.")
+            print("   Video transcoding will be DISABLED.")
+            print("   Install: https://ffmpeg.org/download.html")
+            print("   Or via conda: conda install -c conda-forge ffmpeg")
+            print("=" * 70)
+            logger.warning("FFmpeg is not installed or not found in PATH. Transcoding disabled.")
+        if not ffprobe_path:
+            print("⚠️  FFprobe is not installed or not found in PATH.")
+            logger.warning("FFprobe is not installed or not found in PATH.")
+
+
+# Run check at import time so the warning appears when the server starts
+check_ffmpeg_on_startup()
 
 
 def probe_video_resolution(video_path: str) -> dict:
@@ -78,6 +117,9 @@ def probe_video_resolution(video_path: str) -> dict:
                 "width": int(streams[0].get("width", 0)),
                 "height": int(streams[0].get("height", 0))
             }
+    except FileNotFoundError:
+        logger.error("FFprobe executable not found. Cannot probe video resolution.")
+        print("⚠️  FFprobe is not installed or not found in PATH.")
     except Exception as e:
         logger.error(f"ffprobe error: {e}")
     return {}
@@ -89,6 +131,9 @@ def transcode_single(source_path: str, output_path: str, width: int, height: int
     Uses scale filter with aspect ratio preservation (scale=W:-2 ensures even height).
     """
     try:
+        # Ensure the output directory exists before writing
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
         cmd = [
             get_ffmpeg_path(),
             "-i", source_path,
@@ -115,6 +160,14 @@ def transcode_single(source_path: str, output_path: str, width: int, height: int
         logger.info(f"[TRANSCODE] Successfully created: {output_path}")
         print(f"✅ [TRANSCODE SUCCESS] {output_path}")
         return True
+    except FileNotFoundError:
+        logger.error("[TRANSCODE] FFmpeg executable not found.")
+        print("=" * 70)
+        print("⚠️  FFmpeg is not installed or not found in PATH.")
+        print("   Cannot transcode video. Install FFmpeg first:")
+        print("   https://ffmpeg.org/download.html")
+        print("=" * 70)
+        return False
     except subprocess.TimeoutExpired:
         logger.error(f"[TRANSCODE] Timeout transcoding to {output_path}")
         print(f"❌ [TRANSCODE ERROR] Timeout on {output_path}")
@@ -142,13 +195,21 @@ def transcode_video(video_id: int, source_path: str, videos_dir: str, db_session
     # Ensure absolute paths
     source_path = str(Path(source_path).resolve())
     videos_dir = str(Path(videos_dir).resolve())
+
+    # Ensure the base videos directory exists (handles fresh git clone)
+    os.makedirs(videos_dir, exist_ok=True)
     
     print(f"\n[TRANSCODE] Starting background job for video {video_id}")
     print(f"[TRANSCODE] Source path: {source_path}")
     print(f"[TRANSCODE] Storage dir: {videos_dir}")
 
     if not is_ffmpeg_available():
-        print("[TRANSCODE] FFmpeg not found. Skipping transcoding.")
+        print("=" * 70)
+        print("⚠️  FFmpeg is not installed or not found in PATH.")
+        print("   Skipping transcoding. Only original resolution will be available.")
+        print("   Install: https://ffmpeg.org/download.html")
+        print("=" * 70)
+        logger.warning("FFmpeg not available. Skipping transcoding for video %d.", video_id)
         # Mark Video as ready with original only
         _update_resolutions(video_id, db_session_factory, {"original": os.path.basename(source_path)}, status="published")
         return

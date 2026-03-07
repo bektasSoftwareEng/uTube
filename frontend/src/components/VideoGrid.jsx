@@ -11,7 +11,9 @@ const fac = new FastAverageColor();
 // ── Time-ago helper ───────────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
+    // Ensure the date string is treated as UTC
+    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const diff = Math.max(0, Date.now() - new Date(utcStr).getTime());
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m} minutes ago`;
@@ -247,7 +249,7 @@ export const VideoMenu = ({ video, onHide }) => {
     );
 };
 
-export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
+export const VideoCard = ({ video, onHide, isSessionBlocked, isListLayout = false }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [dominantColor, setDominantColor] = useState('transparent');
@@ -310,7 +312,7 @@ export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
 
     return (
         <motion.div
-            className="group/card cursor-pointer relative flex flex-col"
+            className={`group/card cursor-pointer relative flex ${isListLayout ? 'flex-col sm:flex-row gap-4' : 'flex-col'}`}
             layout
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -328,10 +330,10 @@ export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
             )}
 
             {/* Thumbnail — full clickable */}
-            <Link to={`/video/${video.id}`} className="block relative z-0 group-hover/card:z-10">
+            <Link to={`/video/${video.id}`} className={`block relative z-0 group-hover/card:z-10 shrink-0 ${isListLayout ? 'w-full sm:w-[360px] md:w-[400px]' : ''}`}>
 
                 <div
-                    className="relative aspect-video rounded-xl overflow-hidden mb-3 transition-all duration-300 group-hover/card:scale-105 group-hover/card:shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+                    className={`relative aspect-video rounded-xl overflow-hidden transition-all duration-300 group-hover/card:scale-105 group-hover/card:shadow-[0_10px_30px_rgba(0,0,0,0.5)] ${isListLayout ? '' : 'mb-3'}`}
                     style={isHovered && dominantColor !== 'transparent' ? { boxShadow: `0 10px 40px ${dominantColor}66` } : {}}
                 >
                     <img
@@ -358,7 +360,7 @@ export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
                                     transition={{ duration: 0.3 }}
                                     className="w-full h-full"
                                 >
-                                    <HoverVideoPreview video={video} isGridMode={true} />
+                                    <HoverVideoPreview video={video} isGridMode={!isListLayout} />
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -373,40 +375,82 @@ export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
             </Link>
 
             {/* Info row */}
-            <div className="flex gap-3 mt-3 pr-2">
+            <div className={`flex gap-3 pr-2 ${isListLayout ? 'flex-1 mt-2 sm:mt-0' : 'mt-3'}`}>
                 {/* Avatar */}
-                <Link to={`/video/${video.id}`} className="shrink-0 mt-0.5">
-                    <div className="w-[36px] h-[36px] rounded-full bg-surface overflow-hidden border border-white/5">
-                        <img
-                            src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
-                            alt={video.author?.username}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'U'}&background=random&color=fff`;
-                            }}
-                        />
-                    </div>
-                </Link>
+                {!isListLayout && (
+                    <Link
+                        to={`/channel/${video.author?.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0 mt-0.5"
+                    >
+                        <div className="w-[36px] h-[36px] rounded-full bg-surface overflow-hidden border border-white/5">
+                            <img
+                                src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
+                                alt={video.author?.username}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'U'}&background=random&color=fff`;
+                                }}
+                            />
+                        </div>
+                    </Link>
+                )}
 
                 {/* Text + three-dot row */}
                 <div className="flex-1 min-w-0 flex items-start justify-between">
-                    <Link to={`/video/${video.id}`} className="flex-1 min-w-0 pr-2">
-                        <h3 className="font-semibold text-[15px] sm:text-base text-[#f1f1f1] line-clamp-2 leading-snug transition-colors">
-                            {video.title}
-                        </h3>
-                        <div className="text-[#AAAAAA] text-[13px] mt-1 flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1 hover:text-white transition-colors w-max">
-                                <span>{video.author?.username}</span>
-                                {/* Verified badge */}
-                                <svg className="w-3.5 h-3.5 text-[#AAAAAA]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z" /></svg>
-                            </div>
+                    <div className="flex-1 min-w-0 pr-2">
+                        <Link to={`/video/${video.id}`} className="block">
+                            <h3 className={`font-semibold text-[#f1f1f1] line-clamp-2 leading-snug transition-colors ${isListLayout ? 'text-[17px] md:text-lg mb-1' : 'text-[15px] sm:text-base'}`}>
+                                {video.title}
+                            </h3>
+                        </Link>
+                        <div className={`text-[#AAAAAA] text-[13px] mt-1 flex flex-col gap-0.5 ${isListLayout ? 'mb-2' : ''}`}>
+                            {!isListLayout && (
+                                <Link
+                                    to={`/channel/${video.author?.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-1 hover:text-white transition-colors w-max"
+                                >
+                                    <span>{video.author?.username}</span>
+                                    <svg className="w-3.5 h-3.5 text-[#AAAAAA]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z" /></svg>
+                                </Link>
+                            )}
                             <div className="flex items-center gap-1">
                                 <span>{fmtViews(video.view_count)} views</span>
                                 <span className="text-[10px] mx-0.5">•</span>
                                 <span>{timeAgo(video.upload_date)}</span>
                             </div>
                         </div>
-                    </Link>
+
+                        {/* Avatar and Channel Name inline for List Layout */}
+                        {isListLayout && (
+                            <div className="mt-2 flex flex-col gap-3">
+                                <Link
+                                    to={`/channel/${video.author?.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-2 hover:text-white transition-colors w-max text-[#AAAAAA] text-[13px] group/author"
+                                >
+                                    <div className="w-6 h-6 rounded-full bg-surface overflow-hidden border border-white/5 shrink-0">
+                                        <img
+                                            src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
+                                            alt={video.author?.username}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'U'}&background=random&color=fff`;
+                                            }}
+                                        />
+                                    </div>
+                                    <span className="group-hover/author:text-white transition-colors">{video.author?.username}</span>
+                                    <svg className="w-3.5 h-3.5 text-[#AAAAAA]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z" /></svg>
+                                </Link>
+                                {video.description && (
+                                    <p className="hidden sm:block text-[#AAAAAA] text-[13px] line-clamp-2 pr-4 leading-relaxed">
+                                        {video.description}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     {/* ⋮ Menu */}
                     {onHide && (
@@ -421,7 +465,7 @@ export const VideoCard = ({ video, onHide, isSessionBlocked }) => {
 };
 
 // ── VideoGrid ─────────────────────────────────────────────────────────────────
-const VideoGrid = ({ videos: initialVideos, loading }) => {
+const VideoGrid = ({ videos: initialVideos, loading, isListLayout = false }) => {
     // hidden will only be used directly via UI iteration now (mostly let storage handle it)
     const [blockedChannelsSet, setBlockedChannelsSet] = useState(() => new Set(getBlockedChannels()));
 
@@ -484,15 +528,15 @@ const VideoGrid = ({ videos: initialVideos, loading }) => {
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {[...Array(8)].map((_, i) => (
-                    <div key={i} className="animate-pulse">
-                        <div className="aspect-video bg-surface rounded-xl mb-3" />
-                        <div className="flex gap-3">
-                            <div className="w-10 h-10 rounded-full bg-surface" />
-                            <div className="flex-1 space-y-2 py-1">
-                                <div className="h-4 bg-surface rounded w-3/4" />
-                                <div className="h-3 bg-surface rounded w-1/2" />
+            <div className={isListLayout ? "flex flex-col gap-6 max-w-5xl mx-auto w-full flex-1" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"}>
+                {[...Array(isListLayout ? 4 : 8)].map((_, i) => (
+                    <div key={i} className={`animate-pulse ${isListLayout ? "flex flex-col sm:flex-row gap-4" : ""}`}>
+                        <div className={`bg-surface rounded-xl shrink-0 ${isListLayout ? "w-full sm:w-[360px] md:w-[400px] aspect-video" : "aspect-video mb-3"}`} />
+                        <div className={`flex gap-3 ${isListLayout ? "flex-1 mt-2 sm:mt-0" : ""}`}>
+                            {!isListLayout && <div className="w-10 h-10 rounded-full bg-surface shrink-0" />}
+                            <div className={`flex-1 py-1 space-y-2 ${isListLayout ? "sm:space-y-3" : ""}`}>
+                                <div className={`h-4 bg-surface rounded ${isListLayout ? "w-full" : "w-3/4"}`} />
+                                <div className={`h-3 bg-surface rounded ${isListLayout ? "w-2/3" : "w-1/2"}`} />
                             </div>
                         </div>
                     </div>
@@ -502,7 +546,7 @@ const VideoGrid = ({ videos: initialVideos, loading }) => {
     }
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10">
+        <div className={isListLayout ? "flex flex-col gap-6 max-w-5xl mx-auto w-full flex-1" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10"}>
             <AnimatePresence>
                 {visible.map(video => (
                     <VideoCard
@@ -510,6 +554,7 @@ const VideoGrid = ({ videos: initialVideos, loading }) => {
                         video={video}
                         onHide={handleHide}
                         isSessionBlocked={sessionBlockedIds.has(video.id)}
+                        isListLayout={isListLayout}
                     />
                 ))}
             </AnimatePresence>

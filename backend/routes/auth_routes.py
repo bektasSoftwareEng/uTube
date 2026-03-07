@@ -366,19 +366,14 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
             db.delete(existing_user)
             db.flush()
     
-    # Check if username already exists — allow overwriting unverified records
+    # Check if username already exists — DO NOT allow overwriting even if unverified (usernames are reserved)
     existing_username = db.query(User).filter(User.username == user_data.username).first()
     
     if existing_username:
-        if existing_username.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username is already taken."
-            )
-        else:
-            # Remove stale unverified record so the username can be reused
-            db.delete(existing_username)
-            db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username is already taken."
+        )
     
     # Validate password strength
     is_valid, error_msg = validate_password_strength(user_data.password)
@@ -643,7 +638,7 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         is_verified=user.is_verified,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
-        created_at=user.created_at.isoformat(),
+        created_at=user.created_at.isoformat() + "Z",
         subscriber_count=subscriber_count,
         video_count=video_count,
         total_views=total_views,
@@ -702,7 +697,7 @@ def update_user_profile(
         existing_username = db.query(User).filter(User.username == username, User.id != current_user.id).first()
         if existing_username:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username is already taken."
             )
         current_user.username = username
@@ -1027,7 +1022,7 @@ def get_my_videos(
             title=video.title,
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags),
@@ -1139,7 +1134,7 @@ def get_user_subscriptions(
             username=u.username,
             email=u.email,
             profile_image=u.profile_image,
-            created_at=u.created_at.isoformat()
+            created_at=u.created_at.isoformat() + "Z"
         ) for u in followed_users
     ]
 

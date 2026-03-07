@@ -24,6 +24,8 @@ const EditProfile = () => {
         confirmPassword: ''
     });
 
+    const [usernameTaken, setUsernameTaken] = useState(false);
+
     const [profileImage, setProfileImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [verificationStep, setVerificationStep] = useState(false);
@@ -137,7 +139,12 @@ const EditProfile = () => {
         } catch (err) {
             console.warn('Profile update failed.');
             const errorMsg = err.response?.data?.detail || "Failed to update profile";
-            setError(errorMsg);
+
+            if (err.response?.status === 400 && errorMsg === "Username is already taken.") {
+                setUsernameTaken(true);
+            } else {
+                setError(errorMsg);
+            }
         } finally {
             setLoading(false);
         }
@@ -263,10 +270,16 @@ const EditProfile = () => {
                                 <input
                                     type="text"
                                     value={formData.username}
-                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, username: e.target.value });
+                                        if (usernameTaken) setUsernameTaken(false);
+                                    }}
+                                    className={`w-full bg-white/5 border ${usernameTaken ? 'border-red-500/50 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)]' : 'border-white/10 focus:border-primary/50'} rounded-xl px-4 py-3 outline-none focus:bg-white/10 transition-all font-medium`}
                                     required
                                 />
+                                {usernameTaken && (
+                                    <p className="text-red-500 text-xs mt-1 ml-1 font-medium">This username is already taken. Please choose another.</p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Email</label>

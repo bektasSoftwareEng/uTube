@@ -83,26 +83,28 @@ const Tip = ({ label, children }) => (
 );
 
 // ── Main Component ────────────────────────────────────────────────────────────
-const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStatus }) => {
+const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStatus, title, channelName }) => {
     const videoRef = useRef(null);
     const containerRef = useRef(null);
     const progressRef = useRef(null);
     const hideTimer = useRef(null);
+    const idleTimerRef = useRef(null);
 
     const [playing, setPlaying] = useState(false);
     const [ended, setEnded] = useState(false);
+    const [buffering, setBuffering] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [buffered, setBuffered] = useState(0);
     const [volume, setVolume] = useState(1);
     const [muted, setMuted] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
-    const [showControls, setShowControls] = useState(true);
+    const [isIdle, setIsIdle] = useState(false);
     const [seeking, setSeeking] = useState(false);
     const [hoverTime, setHoverTime] = useState(null);
     const [hoverX, setHoverX] = useState(0);
-    const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-    const [showQualityMenu, setShowQualityMenu] = useState(false);
+    // 'closed' | 'main' | 'speed' | 'quality'
+    const [settingsMenuState, setSettingsMenuState] = useState('closed');
     const [playbackRate, setPlaybackRate] = useState(1);
     const [quality, setQuality] = useState('Auto');
     const [pipActive, setPipActive] = useState(false);
@@ -116,7 +118,7 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
             return ['Auto'];
         }
         // Sort resolutions: 1080p, 720p, 360p, then original
-        const order = ['1080p', '720p', '480p', '360p', 'original'];
+        const order = ['1080p', '720p', '480p', '360p', '144p', 'original'];
         const keys = Object.keys(availableResolutions);
         const sorted = order.filter(k => keys.includes(k));
         // Add any keys not in the predefined order
@@ -126,30 +128,45 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
 
     const isTranscoding = transcodeStatus === 'processing';
 
-    // ── Auto-hide controls ──────────────────────────────────────────────────
-    const scheduleHide = useCallback(() => {
-        clearTimeout(hideTimer.current);
-        hideTimer.current = setTimeout(() => {
-            if (playing && !showSpeedMenu && !showQualityMenu) setShowControls(false);
-        }, 2800);
-    }, [playing, showSpeedMenu, showQualityMenu]);
+    // ── Idle state: hide overlays after 2.5s of no mouse movement ─────────────
+    const IDLE_DELAY_MS = 2500;
+    const settingsMenuClosedRef = useRef(true);
+    settingsMenuClosedRef.current = settingsMenuState === 'closed';
 
-    const revealControls = useCallback(() => {
-        setShowControls(true);
-        scheduleHide();
-    }, [scheduleHide]);
+    const startIdleTimer = useCallback(() => {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = setTimeout(() => {
+            if (settingsMenuClosedRef.current) setIsIdle(true);
+        }, IDLE_DELAY_MS);
+    }, []);
 
-    useEffect(() => { return () => clearTimeout(hideTimer.current); }, []);
-    useEffect(() => { if (playing) scheduleHide(); else setShowControls(true); }, [playing, scheduleHide]);
+    const handleActivity = useCallback(() => {
+        setIsIdle(false);
+        startIdleTimer();
+    }, [startIdleTimer]);
+
+    useEffect(() => {
+        return () => clearTimeout(idleTimerRef.current);
+    }, []);
+
+    // When playing starts, start idle timer; when paused/ended, show overlays
+    useEffect(() => {
+        if (playing) startIdleTimer();
+        else setIsIdle(false);
+    }, [playing, startIdleTimer]);
+
+    // Show overlays when not idle OR when paused/ended (always show controls when paused)
+    const showOverlays = !isIdle || !playing;
+    const revealControls = handleActivity;
 
     // ── Video event bindings ────────────────────────────────────────────────
     useEffect(() => {
         const v = videoRef.current;
         if (!v) return;
 
-        const onPlay = () => { setPlaying(true); setEnded(false); };
+        const onPlay = () => { setPlaying(true); setEnded(false); setBuffering(false); };
         const onPause = () => setPlaying(false);
-        const onEnded = () => { setPlaying(false); setEnded(true); setShowControls(true); };
+        const onEnded = () => { setPlaying(false); setEnded(true); setBuffering(false); };
         const onTimeUpdate = () => {
             setCurrentTime(v.currentTime);
             if (v.buffered.length > 0) {
@@ -163,6 +180,9 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
         };
         const onVolumeChange = () => { setVolume(v.volume); setMuted(v.muted); };
         const onRateChange = () => setPlaybackRate(v.playbackRate);
+        const onWaiting = () => setBuffering(true);
+        const onCanPlay = () => setBuffering(false);
+        const onPlaying = () => setBuffering(false);
 
         v.addEventListener('play', onPlay);
         v.addEventListener('pause', onPause);
@@ -172,6 +192,9 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
         v.addEventListener('loadedmetadata', onLoadedMetadata);
         v.addEventListener('volumechange', onVolumeChange);
         v.addEventListener('ratechange', onRateChange);
+        v.addEventListener('waiting', onWaiting);
+        v.addEventListener('canplay', onCanPlay);
+        v.addEventListener('playing', onPlaying);
 
         if (v.readyState >= 1) {
             setDuration(v.duration);
@@ -190,6 +213,9 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
             v.removeEventListener('loadedmetadata', onLoadedMetadata);
             v.removeEventListener('volumechange', onVolumeChange);
             v.removeEventListener('ratechange', onRateChange);
+            v.removeEventListener('waiting', onWaiting);
+            v.removeEventListener('canplay', onCanPlay);
+            v.removeEventListener('playing', onPlaying);
         };
     }, []);
 
@@ -272,12 +298,12 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
         if (!v) return;
         v.playbackRate = rate;
         setPlaybackRate(rate);
-        setShowSpeedMenu(false);
+        setSettingsMenuState('closed');
     };
 
     const changeQuality = (q) => {
         setQuality(q);
-        setShowQualityMenu(false);
+        setSettingsMenuState('closed');
 
         // Resolve the new source URL
         let newSrc = src; // Default: original src prop
@@ -369,11 +395,22 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
     return (
         <div
             ref={containerRef}
-            className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group"
-            onMouseMove={revealControls}
-            onMouseLeave={() => { if (playing) setShowControls(false); }}
+            className={`relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group transition-[cursor] duration-300 ${isIdle ? 'cursor-none' : ''}`}
+            onMouseMove={handleActivity}
             onDoubleClick={toggleFullscreen}
         >
+            {/* ── Top Info Bar (title + channel) ── */}
+            <div
+                className={`absolute top-0 left-0 w-full z-50 bg-gradient-to-b from-black/80 to-transparent px-4 py-3 transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+                {title != null && title !== '' && (
+                    <h2 className="text-white font-semibold text-sm truncate drop-shadow-sm">{title}</h2>
+                )}
+                {channelName != null && channelName !== '' && (
+                    <p className="text-white/80 text-xs truncate mt-0.5">{channelName}</p>
+                )}
+            </div>
+
             {/* ── Video Element ── */}
             <video
                 ref={videoRef}
@@ -387,11 +424,32 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
                 playsInline
             />
 
-            {/* ── Centre Play/Pause Flash ── */}
+            {/* ── Buffering Spinner ── */}
             <AnimatePresence>
-                {!playing && !ended && (
+                {buffering && playing && (
                     <motion.div
-                        key="centrePlay"
+                        key="buffering"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+                    >
+                        <div className="w-16 h-16">
+                            <svg className="animate-spin w-full h-full text-white/70" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Centre Play/Replay Overlay ── */}
+            <AnimatePresence>
+                {(!playing || ended) && !buffering && (
+                    <motion.div
+                        key={ended ? 'centreReplay' : 'centrePlay'}
                         initial={{ opacity: 0, scale: 0.7 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
@@ -399,7 +457,9 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                     >
                         <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/10">
-                            <div className="w-10 h-10 text-white translate-x-0.5"><PlayIcon /></div>
+                            <div className="w-10 h-10 text-white translate-x-0.5">
+                                {ended ? <ReplayIcon /> : <PlayIcon />}
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -407,21 +467,15 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
 
             {/* ── Bottom gradient fade ── */}
             <div
-                className="absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300"
+                className={`absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0'}`}
                 style={{
                     background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
-                    opacity: showControls ? 1 : 0,
                 }}
             />
 
             {/* ── Glass Controls ── */}
-            <motion.div
-                animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 8 }}
-                transition={{ duration: 0.22, ease: "easeOut" }}
-                className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3"
-                style={{
-                    pointerEvents: showControls ? 'auto' : 'none',
-                }}
+            <div
+                className={`absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3 transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Progress Track ── */}
@@ -536,7 +590,8 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
                                             min={0} max={1} step={0.02}
                                             value={muted ? 0 : volume}
                                             onChange={onVolumeChange}
-                                            className="volume-slider w-[72px] h-1 accent-red-500 cursor-pointer"
+                                            className="volume-slider w-[72px] h-1 cursor-pointer"
+                                            style={{ '--vol': `${(muted ? 0 : volume) * 100}%` }}
                                         />
                                     </motion.div>
                                 )}
@@ -551,78 +606,118 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
 
                     {/* Right: Speed, Quality, PiP, Fullscreen */}
                     <div className="flex items-center gap-0.5">
-                        {/* Playback Speed */}
-                        <div className="relative">
-                            <Tip label="Playback speed">
-                                <button
-                                    onClick={() => { setShowSpeedMenu(p => !p); setShowQualityMenu(false); }}
-                                    className={`text-[11px] font-black px-2 py-1 rounded-lg transition-all ${showSpeedMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-                                >
-                                    {playbackRate === 1 ? '1×' : `${playbackRate}×`}
-                                </button>
-                            </Tip>
-                            <AnimatePresence>
-                                {showSpeedMenu && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                                        transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[100px]"
-                                    >
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Speed</div>
-                                        {SPEEDS.map(s => (
-                                            <button
-                                                key={s}
-                                                onClick={() => setSpeed(s)}
-                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${playbackRate === s ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                {s === 1 ? 'Normal' : `${s}×`}
-                                            </button>
-                                        ))}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                        {/* Quality Settings */}
+                        {/* ── Hierarchical Settings Menu ── */}
                         <div className="relative">
                             <Tip label="Settings">
                                 <button
-                                    onClick={() => { setShowQualityMenu(p => !p); setShowSpeedMenu(false); }}
-                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${showQualityMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
+                                    onClick={() => setSettingsMenuState(prev => prev === 'closed' ? 'main' : 'closed')}
+                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${settingsMenuState !== 'closed' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
                                 >
                                     <SettingsIcon />
                                 </button>
                             </Tip>
-                            <AnimatePresence>
-                                {showQualityMenu && (
+                            <AnimatePresence mode="wait">
+                                {settingsMenuState !== 'closed' && (
                                     <motion.div
+                                        key={settingsMenuState}
                                         initial={{ opacity: 0, y: 8, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[120px]"
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-1 min-w-[200px]"
                                     >
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
-                                            Quality
-                                            {isTranscoding && (
-                                                <span className="inline-flex items-center gap-1 text-yellow-400 normal-case tracking-normal">
-                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                                                    Processing…
-                                                </span>
-                                            )}
-                                        </div>
-                                        {QUALITIES.map(q => (
-                                            <button
-                                                key={q}
-                                                onClick={() => changeQuality(q)}
-                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                <span>{q === 'original' ? 'Original' : q === '1080p' ? '1080p HD' : q}</span>
-                                                {quality === q && <span className="text-[10px]">&bull;</span>}
-                                            </button>
-                                        ))}
+                                        {/* ─── Main View ─── */}
+                                        {settingsMenuState === 'main' && (
+                                            <>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('speed')}
+                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M10 8v8l6-4-6-4zm11.54-1.38C20.8 4.44 18.55 3 16 3H8C5.45 3 3.2 4.44 2.46 6.62L1 12l1.46 5.38C3.2 19.56 5.45 21 8 21h8c2.55 0 4.8-1.44 5.54-3.62L23 12l-1.46-5.38zM21 12l-1.26 4.63C19.22 18.38 17.73 19 16 19H8c-1.73 0-3.22-.62-3.74-2.37L3 12l1.26-4.63C4.78 5.62 6.27 5 8 5h8c1.73 0 3.22.62 3.74 2.37L21 12z" /></svg>
+                                                        Playback speed
+                                                    </span>
+                                                    <span className="text-white/50 text-[11px]">
+                                                        {playbackRate === 1 ? 'Normal' : `${playbackRate}×`}
+                                                    </span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('quality')}
+                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M15 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V9l-6-6zM5 19V5h9v5h5v9H5zm4-4h6v2H9v-2zm0-4h6v2H9v-2z" /></svg>
+                                                        Quality
+                                                    </span>
+                                                    <span className="text-white/50 text-[11px] flex items-center gap-1">
+                                                        {isTranscoding && (
+                                                            <svg className="w-3 h-3 animate-spin text-yellow-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                                        )}
+                                                        {quality}
+                                                    </span>
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {/* ─── Speed Submenu ─── */}
+                                        {settingsMenuState === 'speed' && (
+                                            <>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('main')}
+                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors border-b border-white/10"
+                                                >
+                                                    <span className="text-sm">←</span>
+                                                    Playback speed
+                                                </button>
+                                                {SPEEDS.map(s => (
+                                                    <button
+                                                        key={s}
+                                                        onClick={() => setSpeed(s)}
+                                                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${playbackRate === s
+                                                            ? 'text-white bg-white/10'
+                                                            : 'text-white/70 hover:text-white hover:bg-white/5'
+                                                            }`}
+                                                    >
+                                                        <span>{s === 1 ? 'Normal' : `${s}×`}</span>
+                                                        {playbackRate === s && <span className="text-[10px]">✓</span>}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {/* ─── Quality Submenu ─── */}
+                                        {settingsMenuState === 'quality' && (
+                                            <>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('main')}
+                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors border-b border-white/10"
+                                                >
+                                                    <span className="text-sm">←</span>
+                                                    <span className="flex items-center gap-2">
+                                                        Quality
+                                                        {isTranscoding && (
+                                                            <span className="inline-flex items-center gap-1 text-yellow-400 text-[10px] normal-case tracking-normal">
+                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                                                Processing…
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </button>
+                                                {QUALITIES.map(q => (
+                                                    <button
+                                                        key={q}
+                                                        onClick={() => changeQuality(q)}
+                                                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q
+                                                            ? 'text-white bg-white/10'
+                                                            : 'text-white/70 hover:text-white hover:bg-white/5'
+                                                            }`}
+                                                    >
+                                                        <span>{q === 'original' ? 'Original' : q === '1080p' ? '1080p HD' : q}</span>
+                                                        {quality === q && <span className="text-[10px]">✓</span>}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -651,7 +746,7 @@ const VideoPlayer = ({ src, poster, onError, availableResolutions, transcodeStat
                         </Tip>
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };

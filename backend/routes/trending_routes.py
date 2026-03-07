@@ -71,7 +71,7 @@ def get_trending_videos(
             video_url=get_video_url(video.video_filename),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             like_count=video.like_count,

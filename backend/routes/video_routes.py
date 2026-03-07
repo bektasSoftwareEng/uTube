@@ -63,7 +63,6 @@ class AuthorResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class VideoUploadResponse(BaseModel):
     """Response model for video upload."""
     id: int
@@ -99,6 +98,22 @@ class VideoListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ChannelSearchResponse(BaseModel):
+    id: int
+    username: str
+    profile_image: Optional[str] = None
+    subscriber_count: int = 0
+    video_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class CombinedSearchResponse(BaseModel):
+    channels: List[ChannelSearchResponse]
+    videos: List[VideoListResponse]
 
 
 class VideoResponse(BaseModel):
@@ -178,11 +193,11 @@ def format_video_response(video: Video, include_duration: bool = False) -> dict:
         "category": video.category,
         "tags": parse_tags(video.tags),
         "visibility": video.visibility,
-        "scheduled_at": video.scheduled_at.isoformat() if video.scheduled_at else None,
+        "scheduled_at": (video.scheduled_at.isoformat() + "Z") if video.scheduled_at else None,
         "video_url": get_video_url(video.video_filename, is_temp=is_temp),
         "thumbnail_url": get_thumbnail_url(video.thumbnail_filename),
         "view_count": video.view_count,
-        "upload_date": video.upload_date.isoformat(),
+        "upload_date": video.upload_date.isoformat() + "Z",
         "duration": video.duration,
         "like_count": video.like_count,
         "author": {
@@ -412,7 +427,7 @@ async def upload_video(
             video_url=get_video_url(video_filename, is_temp=True),
             thumbnail_url=get_thumbnail_url(new_video.thumbnail_filename),
             view_count=new_video.view_count,
-            upload_date=new_video.upload_date.isoformat(),
+            upload_date=new_video.upload_date.isoformat() + "Z",
             preview_frames=preview_frames_urls,
             author=AuthorResponse(
                 id=current_user.id,
@@ -461,7 +476,7 @@ def get_user_draft(
             "video_url": get_video_url(draft.video_filename, is_temp=True),
             "thumbnail_url": get_thumbnail_url(draft.thumbnail_filename),
             "duration": draft.duration,
-            "upload_date": draft.upload_date.isoformat(),
+            "upload_date": draft.upload_date.isoformat() + "Z",
             "preview_frames": [
                 get_preview_url(f.name) 
                 for f in PREVIEWS_DIR.glob(f"video_{draft.id}_preview_*.*")
@@ -504,7 +519,7 @@ def get_all_videos(
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags), # FIXED: Parse tags here
@@ -522,7 +537,7 @@ def get_all_videos(
         for video in videos
     ]
 
-@router.get("/semantic-search", response_model=List[VideoListResponse])
+@router.get("/semantic-search", response_model=CombinedSearchResponse)
 def semantic_search(
     query: str,
     limit: int = 12,
@@ -531,9 +546,10 @@ def semantic_search(
     """
     Performs context-aware local semantic search using sentence-transformers and numpy.
     Falls back to powerful lexical search if ML returns nothing.
+    Now includes user channel matches.
     """
     if not query.strip():
-        return []
+        return CombinedSearchResponse(channels=[], videos=[])
 
     from sqlalchemy import cast, String
 
@@ -603,15 +619,28 @@ def semantic_search(
             )
         ).order_by(Video.view_count.desc()).limit(limit).all()
 
-    # ── PHASE 3: Format and return ──
-    return [
+    # ── PHASE 3: Search for matching Channels ──
+    channels_query = db.query(User).filter(User.username.ilike(f"%{clean_query}%")).limit(5).all()
+    channels_list = [
+        ChannelSearchResponse(
+            id=user.id,
+            username=user.username,
+            profile_image=user.profile_image,
+            subscriber_count=user.followers.count(),
+            video_count=user.videos.count()
+        )
+        for user in channels_query
+    ]
+
+    # ── PHASE 4: Format and return ──
+    videos_list = [
         VideoListResponse(
             id=video.id,
             title=video.title,
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags),
@@ -627,6 +656,8 @@ def semantic_search(
         )
         for video in top_videos
     ]
+    
+    return CombinedSearchResponse(channels=channels_list, videos=videos_list)
 
 @router.get("/history", response_model=List[VideoListResponse])
 def get_video_history(
@@ -657,7 +688,7 @@ def get_liked_videos(
             title=video.title,
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags),
@@ -940,7 +971,7 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags), # FIXED

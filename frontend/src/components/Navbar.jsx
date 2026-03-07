@@ -152,7 +152,9 @@ const Navbar = () => {
     // ── Time ago helper ──
     const timeAgo = (dateStr) => {
         const now = new Date();
-        const date = new Date(dateStr);
+        // Ensure the date string is treated as UTC
+        const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+        const date = new Date(utcStr);
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
         if (diffMins < 1) return 'Just now';
@@ -385,7 +387,7 @@ const Navbar = () => {
                                             </Link>
 
                                             <Link
-                                                to={`/channel/@${encodeURIComponent(user?.username)}`}
+                                                to="/my-channel"
                                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
                                                 onClick={() => setIsMenuOpen(false)}
                                             >
