@@ -34,6 +34,7 @@ from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX,
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router, chat_router
 from backend.routes.channel_routes import router as channel_router
 from backend.routes.stream_routes import router as stream_router
+from backend.routes.admin_routes import router as admin_router
 from backend.database import init_db
 from backend.services.cleanup_service import startup_cleanup, cleanup_loop
 
@@ -144,6 +145,13 @@ app.include_router(stream_router, prefix=f"{API_PREFIX}/streams")
 
 # Chat routes: WS endpoint at /api/v1/ws/chat/... and HTTP at /api/v1/chat/history/...
 app.include_router(chat_router, prefix=API_PREFIX)
+app.include_router(admin_router, prefix=API_PREFIX)
+
+# Mount static files
+# /storage for local dev files
+app.mount("/storage", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "storage")), name="storage")
+# /uploads for direct access to videos/thumbnails/avatars
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 
 
