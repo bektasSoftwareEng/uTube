@@ -13,30 +13,13 @@ import LiveStudio from './pages/LiveStudio'
 import WatchPage from './pages/WatchPage';
 import Dashboard from './pages/Dashboard';
 import BlockedVideos from './pages/BlockedVideos';
-import MyChannel from './pages/MyChannel';
-import Channel from './pages/Channel';
-import AdminPanel from './pages/AdminPanel';
-import Notifications from './pages/Notifications';
-import Subscriptions from './pages/Subscriptions';
-import LikedVideos from './pages/LikedVideos';
-import { UTUBE_TOKEN, UTUBE_USER } from './utils/authConstants'
+import { UTUBE_TOKEN } from './utils/authConstants'
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 
 // Utility component to strictly guard routes
 const ProtectedRoute = ({ children }) => {
     const isAuthenticated = !!localStorage.getItem(UTUBE_TOKEN);
     return isAuthenticated ? children : <Navigate to="/login" replace />;
-};
-
-// Admin-only route guard
-const AdminRoute = ({ children }) => {
-    const isAuthenticated = !!localStorage.getItem(UTUBE_TOKEN);
-    if (!isAuthenticated) return <Navigate to="/login" replace />;
-    try {
-        const user = JSON.parse(localStorage.getItem(UTUBE_USER) || '{}');
-        if (!user.is_admin) return <Navigate to="/" replace />;
-    } catch { return <Navigate to="/" replace />; }
-    return children;
 };
 
 // Floating Sidebar Trigger
@@ -105,13 +88,6 @@ const AppLayout = () => {
                     <Route path="/live" element={<ProtectedRoute><LiveStudio /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/blocked" element={<ProtectedRoute><BlockedVideos /></ProtectedRoute>} />
-                    <Route path="/my-channel" element={<ProtectedRoute><MyChannel /></ProtectedRoute>} />
-                    <Route path="/channel/:id" element={<Channel />} />
-                    {/* Admin & Notifications */}
-                    <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
-                    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-                    <Route path="/subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
-                    <Route path="/liked" element={<ProtectedRoute><LikedVideos /></ProtectedRoute>} />
                 </Routes>
             </main>
         </div>

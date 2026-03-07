@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import ApiClient from '../utils/ApiClient';
@@ -13,9 +13,7 @@ import { UTUBE_USER } from '../utils/authConstants';
 
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    // Ensure the date string is treated as UTC
-    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-    const diff = Math.max(0, Date.now() - new Date(utcStr).getTime());
+    const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m} minutes ago`;
@@ -51,7 +49,6 @@ const SidebarSkeleton = () => (
 
 const VideoDetail = () => {
     const { id } = useParams();
-    const navigate = useNavigate();
     const [video, setVideo] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -82,13 +79,6 @@ const VideoDetail = () => {
     const [replyText, setReplyText] = useState('');
     const [expandedReplies, setExpandedReplies] = useState({});
     const [replySubmitting, setReplySubmitting] = useState(false);
-
-    // ── Resolution State ──
-    const [availableResolutions, setAvailableResolutions] = useState(null);
-    const [transcodeStatus, setTranscodeStatus] = useState('pending');
-
-    // ── Channel Subscriber Count (author) ──
-    const [authorSubCount, setAuthorSubCount] = useState(null);
 
     // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
@@ -196,23 +186,6 @@ const VideoDetail = () => {
     }, [id]);
 
     // ══════════════════════════════════════════════════
-    // Fetch Author Stats (subscriber_count)
-    // ══════════════════════════════════════════════════
-    useEffect(() => {
-        const fetchAuthorStats = async () => {
-            if (!video?.author?.username) return;
-            try {
-                const res = await ApiClient.get(`/auth/profile/${encodeURIComponent(video.author.username)}`);
-                setAuthorSubCount(res.data.subscriber_count ?? 0);
-            } catch (err) {
-                console.warn('Could not fetch author stats:', err);
-            }
-        };
-
-        fetchAuthorStats();
-    }, [video]);
-
-    // ══════════════════════════════════════════════════
     // Fetch Like/Dislike Status (requires auth)
     // ══════════════════════════════════════════════════
     useEffect(() => {
@@ -305,38 +278,6 @@ const VideoDetail = () => {
     }, []);
 
     // ══════════════════════════════════════════════════
-    // Fetch Resolutions (with polling while transcoding)
-    // ══════════════════════════════════════════════════
-    useEffect(() => {
-        if (!video) return;
-        let resPollInterval;
-
-        const fetchResolutions = async () => {
-            try {
-                const res = await ApiClient.get(`/videos/${id}/resolutions`);
-                setAvailableResolutions(res.data.resolutions || null);
-                setTranscodeStatus(res.data.status);
-
-                // Stop polling once transcoding is done
-                if (res.data.status !== 'processing' && resPollInterval) {
-                    clearInterval(resPollInterval);
-                    resPollInterval = null;
-                }
-            } catch (err) {
-                console.warn('Could not fetch resolutions:', err);
-            }
-        };
-
-        fetchResolutions();
-        // Poll every 10s while transcoding
-        resPollInterval = setInterval(fetchResolutions, 10000);
-
-        return () => {
-            if (resPollInterval) clearInterval(resPollInterval);
-        };
-    }, [video, id]);
-
-    // ══════════════════════════════════════════════════
     // Handlers
     // ══════════════════════════════════════════════════
 
@@ -359,16 +300,10 @@ const VideoDetail = () => {
             if (isSubscribed) {
                 await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(false);
-                setAuthorSubCount(prev =>
-                    prev == null ? prev : Math.max(0, prev - 1)
-                );
                 toast.success('Abonelikten çıkıldı');
             } else {
                 await ApiClient.post(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(true);
-                setAuthorSubCount(prev =>
-                    prev == null ? prev : prev + 1
-                );
                 toast.success('Abone olundu!');
             }
         } catch (error) {
@@ -531,14 +466,6 @@ const VideoDetail = () => {
         }
     };
 
-    const handleAutoplayEnd = () => {
-        if (recommendations && recommendations.length > 0) {
-            const nextVideo = recommendations[0];
-            toast(`Autoplaying: ${nextVideo.title}`, { icon: '🍿', duration: 3000 });
-            navigate(`/video/${nextVideo.id}`);
-        }
-    };
-
     // ══════════════════════════════════════════════════
     // Render: Loading & Error States
     // ══════════════════════════════════════════════════
@@ -598,11 +525,6 @@ const VideoDetail = () => {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
-                            availableResolutions={availableResolutions}
-                            transcodeStatus={transcodeStatus}
-                            title={video.title}
-                            channelName={video.author?.username}
-                            onAutoplayEnd={handleAutoplayEnd}
                         />
                     </div>
 
@@ -610,27 +532,20 @@ const VideoDetail = () => {
                     <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-tight">{video.title}</h1>
                     <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-white/10 mb-6 gap-4">
                         <div className="flex items-center gap-4">
-                            <Link
-                                to={`/channel/${video.author?.id}`}
-                                className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface shrink-0 hover:ring-2 hover:ring-white/30 transition-all"
-                            >
+                            <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface">
                                 <img
                                     src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                                     alt={video.author?.username}
                                     className="w-full h-full object-cover"
                                     onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'User'}&background=random&color=fff`; }}
                                 />
-                            </Link>
 
-                            <Link
-                                to={`/channel/${video.author?.id}`}
-                                className="hover:underline underline-offset-2"
-                            >
+                            </div>
+
+                            <div>
                                 <p className="font-bold">{video.author?.username}</p>
-                                <p className="text-white/40 text-xs">
-                                    {(authorSubCount ?? 0).toLocaleString()} subscribers
-                                </p>
-                            </Link>
+                                <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
+                            </div>
                             {isOwnChannel ? (
                                 <Link
                                     to="/edit-profile"
@@ -831,7 +746,7 @@ const VideoDetail = () => {
                                                                 setReplyText('');
                                                             }
                                                         }}
-                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold transition-colors ${replyingTo?.id === comment.id ? 'text-[var(--accent)] bg-[var(--accent)]/10' : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold transition-colors ${replyingTo?.id === comment.id ? 'text-[var(--gold)] bg-[var(--gold)]/10' : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
                                                     >
                                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -869,14 +784,14 @@ const VideoDetail = () => {
                                                             </div>
                                                             <div className="flex-1">
                                                                 <div className="relative">
-                                                                    <span className="text-[var(--accent)] text-xs font-bold mr-1">@{replyingTo.username}</span>
+                                                                    <span className="text-[var(--gold)] text-xs font-bold mr-1">@{replyingTo.username}</span>
                                                                     <input
                                                                         type="text"
                                                                         autoFocus
                                                                         value={replyText}
                                                                         onChange={(e) => setReplyText(e.target.value)}
                                                                         placeholder="Write a reply..."
-                                                                        className="w-full bg-transparent border-b border-white/10 focus:border-[var(--accent)]/50 outline-none text-sm py-1 text-white placeholder-white/30 transition-colors"
+                                                                        className="w-full bg-transparent border-b border-white/10 focus:border-[var(--gold)]/50 outline-none text-sm py-1 text-white placeholder-white/30 transition-colors"
                                                                     />
                                                                 </div>
                                                                 <div className="flex justify-end gap-2 mt-2">
@@ -891,7 +806,7 @@ const VideoDetail = () => {
                                                                         type="submit"
                                                                         disabled={replySubmitting || !replyText.trim()}
                                                                         className="px-3 py-1 rounded-full text-xs font-black transition-colors disabled:opacity-40"
-                                                                        style={{ background: 'var(--accent)', color: 'black' }}
+                                                                        style={{ background: 'var(--gold)', color: 'black' }}
                                                                     >
                                                                         {replySubmitting ? 'Posting…' : 'Reply'}
                                                                     </button>
@@ -907,7 +822,7 @@ const VideoDetail = () => {
                                                         <button
                                                             onClick={() => setExpandedReplies(prev => ({ ...prev, [comment.id]: !prev[comment.id] }))}
                                                             className="flex items-center gap-1.5 text-xs font-black mb-3 transition-colors"
-                                                            style={{ color: 'var(--accent)' }}
+                                                            style={{ color: 'var(--gold)' }}
                                                         >
                                                             <svg className={`w-3.5 h-3.5 transition-transform ${expandedReplies[comment.id] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />

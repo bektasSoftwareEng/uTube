@@ -65,11 +65,6 @@ class User(Base):
     upload_banned = Column(Boolean, default=False, nullable=False)
     upload_ban_reason = Column(Text, nullable=True)
 
-    # Admin Fields
-    is_admin = Column(Boolean, default=False, nullable=False)
-    upload_banned = Column(Boolean, default=False, nullable=False)
-    upload_ban_reason = Column(Text, nullable=True)
-
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     

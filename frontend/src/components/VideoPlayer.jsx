@@ -42,25 +42,33 @@ const VolumeLowIcon = () => (
     </svg>
 );
 const FullscreenIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
     </svg>
 );
 const ExitFullscreenIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
     </svg>
 );
 const PipIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-        <rect x="3" y="6" width="18" height="12" rx="2" ry="2" />
-        <rect x="12" y="11" width="7" height="5" rx="1" ry="1" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M19 7H9c-1.1 0-2 .9-2 2v10h2V9h10V7zm2 4h-8c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-6c0-1.1-.9-2-2-2z" />
     </svg>
 );
 const SettingsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+    </svg>
+);
+const SkipBackIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" />
+    </svg>
+);
+const SkipFwdIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+        <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" />
     </svg>
 );
 
@@ -75,103 +83,58 @@ const Tip = ({ label, children }) => (
 );
 
 // ── Main Component ────────────────────────────────────────────────────────────
-const VideoPlayer = ({ src, poster, onError,
-    availableResolutions,
-    transcodeStatus,
-    title,
-    channelName,
-    onAutoplayEnd
-}) => {
+const VideoPlayer = ({ src, poster, onError }) => {
     const videoRef = useRef(null);
     const containerRef = useRef(null);
     const progressRef = useRef(null);
     const hideTimer = useRef(null);
-    const idleTimerRef = useRef(null);
 
     const [playing, setPlaying] = useState(false);
     const [ended, setEnded] = useState(false);
-    const [buffering, setBuffering] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [buffered, setBuffered] = useState(0);
-    const [volume, setVolume] = useState(() => {
-        const saved = localStorage.getItem('utube_volume');
-        return saved !== null ? parseFloat(saved) : 1;
-    });
-    const [muted, setMuted] = useState(() => {
-        const saved = localStorage.getItem('utube_muted');
-        return saved === 'true';
-    });
+    const [volume, setVolume] = useState(1);
+    const [muted, setMuted] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
-    const [isIdle, setIsIdle] = useState(false);
+    const [showControls, setShowControls] = useState(true);
     const [seeking, setSeeking] = useState(false);
     const [hoverTime, setHoverTime] = useState(null);
-    const [settingsMenuState, setSettingsMenuState] = useState('closed');
-    const [playbackRate, setPlaybackRate] = useState(() => {
-        const saved = localStorage.getItem('utube_playbackRate');
-        return saved !== null ? parseFloat(saved) : 1;
-    });
+    const [hoverX, setHoverX] = useState(0);
+    const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+    const [showQualityMenu, setShowQualityMenu] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
     const [quality, setQuality] = useState('Auto');
     const [pipActive, setPipActive] = useState(false);
     const [showVolume, setShowVolume] = useState(false);
-    const [autoplayEnabled, setAutoplayEnabled] = useState(true);
-    const [skipIndicator, setSkipIndicator] = useState(null); // { type: 'forward' | 'backward', key: number }
 
     const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    const QUALITIES = ['Auto', '1080p HD', '720p', '480p', '360p'];
 
-    // Override Quality list specifically formatted per the new user request
-    const QUALITIES = React.useMemo(() => {
-        return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
-    }, []);
+    // ── Auto-hide controls ──────────────────────────────────────────────────
+    const scheduleHide = useCallback(() => {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = setTimeout(() => {
+            if (playing && !showSpeedMenu && !showQualityMenu) setShowControls(false);
+        }, 2800);
+    }, [playing, showSpeedMenu, showQualityMenu]);
 
-    const isTranscoding = transcodeStatus === 'processing';
+    const revealControls = useCallback(() => {
+        setShowControls(true);
+        scheduleHide();
+    }, [scheduleHide]);
 
-    // ── Idle state: hide overlays after 2.5s of no mouse movement ─────────────
-    const IDLE_DELAY_MS = 2500;
-    const settingsMenuClosedRef = useRef(true);
-    settingsMenuClosedRef.current = settingsMenuState === 'closed';
-
-    const startIdleTimer = useCallback(() => {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = setTimeout(() => {
-            if (settingsMenuClosedRef.current) setIsIdle(true);
-        }, IDLE_DELAY_MS);
-    }, []);
-
-    const handleActivity = useCallback(() => {
-        setIsIdle(false);
-        startIdleTimer();
-    }, [startIdleTimer]);
-
-    useEffect(() => {
-        return () => clearTimeout(idleTimerRef.current);
-    }, []);
-
-    // When playing starts, start idle timer; when paused/ended, show overlays
-    useEffect(() => {
-        if (playing) startIdleTimer();
-        else setIsIdle(false);
-    }, [playing, startIdleTimer]);
-
-    // Show overlays when not idle OR when paused/ended (always show controls when paused)
-    const showOverlays = !isIdle || !playing;
-    const revealControls = handleActivity;
+    useEffect(() => { return () => clearTimeout(hideTimer.current); }, []);
+    useEffect(() => { if (playing) scheduleHide(); else setShowControls(true); }, [playing, scheduleHide]);
 
     // ── Video event bindings ────────────────────────────────────────────────
     useEffect(() => {
         const v = videoRef.current;
         if (!v) return;
 
-        const onPlay = () => { setPlaying(true); setEnded(false); setBuffering(false); };
+        const onPlay = () => { setPlaying(true); setEnded(false); };
         const onPause = () => setPlaying(false);
-        const onEnded = () => {
-            setPlaying(false);
-            setEnded(true);
-            setBuffering(false);
-            if (autoplayEnabled && onAutoplayEnd) {
-                onAutoplayEnd();
-            }
-        };
+        const onEnded = () => { setPlaying(false); setEnded(true); setShowControls(true); };
         const onTimeUpdate = () => {
             setCurrentTime(v.currentTime);
             if (v.buffered.length > 0) {
@@ -185,9 +148,6 @@ const VideoPlayer = ({ src, poster, onError,
         };
         const onVolumeChange = () => { setVolume(v.volume); setMuted(v.muted); };
         const onRateChange = () => setPlaybackRate(v.playbackRate);
-        const onWaiting = () => setBuffering(true);
-        const onCanPlay = () => setBuffering(false);
-        const onPlaying = () => setBuffering(false);
 
         v.addEventListener('play', onPlay);
         v.addEventListener('pause', onPause);
@@ -197,14 +157,6 @@ const VideoPlayer = ({ src, poster, onError,
         v.addEventListener('loadedmetadata', onLoadedMetadata);
         v.addEventListener('volumechange', onVolumeChange);
         v.addEventListener('ratechange', onRateChange);
-        v.addEventListener('waiting', onWaiting);
-        v.addEventListener('canplay', onCanPlay);
-        v.addEventListener('playing', onPlaying);
-
-        // Sync initial persisted values to the video element DOM when mounted
-        v.volume = volume;
-        v.muted = muted;
-        v.playbackRate = playbackRate;
 
         if (v.readyState >= 1) {
             setDuration(v.duration);
@@ -223,11 +175,8 @@ const VideoPlayer = ({ src, poster, onError,
             v.removeEventListener('loadedmetadata', onLoadedMetadata);
             v.removeEventListener('volumechange', onVolumeChange);
             v.removeEventListener('ratechange', onRateChange);
-            v.removeEventListener('waiting', onWaiting);
-            v.removeEventListener('canplay', onCanPlay);
-            v.removeEventListener('playing', onPlaying);
         };
-    }, [autoplayEnabled, onAutoplayEnd]);
+    }, []);
 
     // ── Fullscreen sync ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -250,53 +199,17 @@ const VideoPlayer = ({ src, poster, onError,
         };
     }, []);
 
-    // ── Smooth Progress Bar Loop (60fps DOM bypass) ─────────────────────────
-    useEffect(() => {
-        let frameId;
-        const updateProgress = () => {
-            if (videoRef.current && progressRef.current && duration > 0) {
-                // Read from true underlying video current time for fluid sub-second precision
-                const v = videoRef.current;
-                const pct = (v.currentTime / duration) * 100;
-                progressRef.current.style.setProperty('--progress', `${pct}%`);
-            }
-            frameId = requestAnimationFrame(updateProgress);
-        };
-        frameId = requestAnimationFrame(updateProgress);
-        return () => cancelAnimationFrame(frameId);
-    }, [duration]);
-
-    // ── Persist Settings Hook ──────────────────────────────────────────────────
-    useEffect(() => {
-        localStorage.setItem('utube_volume', volume);
-        localStorage.setItem('utube_muted', muted);
-        localStorage.setItem('utube_playbackRate', playbackRate);
-    }, [volume, muted, playbackRate]);
-
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
     useEffect(() => {
         const onKey = (e) => {
             if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
             const v = videoRef.current;
             if (!v) return;
-
             revealControls();
-
-            const triggerSkipIndicator = (type) => {
-                setSkipIndicator({ type, key: Date.now() });
-                setTimeout(() => setSkipIndicator(null), 800);
-            };
-
             switch (e.key) {
                 case ' ': case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); break;
-                case 'ArrowRight': case 'l':
-                    v.currentTime = Math.min(v.duration, v.currentTime + 10);
-                    triggerSkipIndicator('forward');
-                    break;
-                case 'ArrowLeft': case 'j':
-                    v.currentTime = Math.max(0, v.currentTime - 10);
-                    triggerSkipIndicator('backward');
-                    break;
+                case 'ArrowRight': case 'l': v.currentTime = Math.min(v.duration, v.currentTime + 5); break;
+                case 'ArrowLeft': case 'j': v.currentTime = Math.max(0, v.currentTime - 5); break;
                 case 'ArrowUp': v.volume = Math.min(1, v.volume + 0.1); break;
                 case 'ArrowDown': v.volume = Math.max(0, v.volume - 0.1); break;
                 case 'm': v.muted = !v.muted; break;
@@ -344,45 +257,7 @@ const VideoPlayer = ({ src, poster, onError,
         if (!v) return;
         v.playbackRate = rate;
         setPlaybackRate(rate);
-        setSettingsMenuState('closed');
-    };
-
-    const changeQuality = (q) => {
-        setQuality(q);
-        setSettingsMenuState('closed');
-
-        // Resolve the new source URL
-        let newSrc = src; // Default: original src prop
-        if (q !== 'Auto' && availableResolutions && availableResolutions[q]) {
-            // Build full URL from the resolution path
-            const mediaBase = import.meta.env.VITE_MEDIA_BASE_URL || '';
-            const resPath = availableResolutions[q];
-            newSrc = resPath.startsWith('http') ? resPath : `${mediaBase}${resPath}`;
-        }
-
-        const v = videoRef.current;
-        if (!v) return;
-
-        // If src is already the same, no need to reload
-        const currentSrc = v.currentSrc || v.src || '';
-        if (currentSrc.endsWith(newSrc) || currentSrc === newSrc) return;
-
-        // Save state before switching
-        const savedTime = v.currentTime;
-        const savedRate = v.playbackRate;
-        const wasPlaying = !v.paused;
-
-        // Switch source and restore state
-        v.src = newSrc;
-        v.load();
-
-        const onReady = () => {
-            v.currentTime = savedTime;
-            v.playbackRate = savedRate;
-            if (wasPlaying) v.play().catch(() => { });
-            v.removeEventListener('loadedmetadata', onReady);
-        };
-        v.addEventListener('loadedmetadata', onReady);
+        setShowSpeedMenu(false);
     };
 
     // ── Progress bar interaction ─────────────────────────────────────────────
@@ -441,19 +316,11 @@ const VideoPlayer = ({ src, poster, onError,
     return (
         <div
             ref={containerRef}
-            className={`relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group transition-[cursor] duration-300 ${isIdle ? 'cursor-none' : ''}`}
-            onMouseMove={handleActivity}
+            className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group"
+            onMouseMove={revealControls}
+            onMouseLeave={() => { if (playing) setShowControls(false); }}
             onDoubleClick={toggleFullscreen}
         >
-            {/* ── Top Info Bar (title only, visible only in fullscreen) ── */}
-            <div
-                className={`absolute top-0 left-0 w-full z-50 bg-gradient-to-b from-black/80 to-transparent px-8 py-6 transition-opacity duration-300 ease-in-out ${showOverlays && fullscreen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-            >
-                {title != null && title !== '' && (
-                    <h2 className="text-white font-semibold text-2xl truncate drop-shadow-md">{title}</h2>
-                )}
-            </div>
-
             {/* ── Video Element ── */}
             <video
                 ref={videoRef}
@@ -465,35 +332,13 @@ const VideoPlayer = ({ src, poster, onError,
                 onClick={togglePlay}
                 onError={onError}
                 playsInline
-                autoPlay
             />
 
-            {/* ── Buffering Spinner ── */}
+            {/* ── Centre Play/Pause Flash ── */}
             <AnimatePresence>
-                {buffering && playing && (
+                {!playing && !ended && (
                     <motion.div
-                        key="buffering"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-                    >
-                        <div className="w-16 h-16">
-                            <svg className="animate-spin w-full h-full text-white/70" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── Centre Play/Replay Overlay ── */}
-            <AnimatePresence>
-                {(!playing || ended) && !buffering && (
-                    <motion.div
-                        key={ended ? 'centreReplay' : 'centrePlay'}
+                        key="centrePlay"
                         initial={{ opacity: 0, scale: 0.7 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
@@ -501,29 +346,7 @@ const VideoPlayer = ({ src, poster, onError,
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                     >
                         <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/10">
-                            <div className="w-10 h-10 text-white translate-x-0.5">
-                                {ended ? <ReplayIcon /> : <PlayIcon />}
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── Skip Indicator Overlay ── */}
-            <AnimatePresence>
-                {skipIndicator && (
-                    <motion.div
-                        key={skipIndicator.key}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`absolute top-1/2 -translate-y-1/2 ${skipIndicator.type === 'forward' ? 'right-24' : 'left-24'} pointer-events-none z-50`}
-                    >
-                        <div className="bg-black/40 backdrop-blur-sm px-6 py-4 rounded-full text-white font-bold text-2xl tracking-widest flex items-center gap-2 shadow-2xl border border-white/10">
-                            {skipIndicator.type === 'backward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>}
-                            {skipIndicator.type === 'backward' ? '- 10' : '+ 10'}
-                            {skipIndicator.type === 'forward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>}
+                            <div className="w-10 h-10 text-white translate-x-0.5"><PlayIcon /></div>
                         </div>
                     </motion.div>
                 )}
@@ -531,15 +354,21 @@ const VideoPlayer = ({ src, poster, onError,
 
             {/* ── Bottom gradient fade ── */}
             <div
-                className={`absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0'}`}
+                className="absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300"
                 style={{
                     background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
+                    opacity: showControls ? 1 : 0,
                 }}
             />
 
             {/* ── Glass Controls ── */}
-            <div
-                className={`absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3 transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            <motion.div
+                animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 8 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3"
+                style={{
+                    pointerEvents: showControls ? 'auto' : 'none',
+                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Progress Track ── */}
@@ -562,9 +391,9 @@ const VideoPlayer = ({ src, poster, onError,
                             />
                             {/* Played — solid red */}
                             <div
-                                className="absolute left-0 top-0 h-full rounded-full bg-[#ff0000]"
+                                className="absolute left-0 top-0 h-full rounded-full transition-all bg-[#ff0000]"
                                 style={{
-                                    width: `var(--progress, 0%)`,
+                                    width: `${progress}%`,
                                     boxShadow: '0 0 10px rgba(255,0,0,0.5)',
                                 }}
                             />
@@ -582,203 +411,157 @@ const VideoPlayer = ({ src, poster, onError,
 
                         {/* Scrubber thumb — appears on hover/seeking */}
                         <div
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#ff0000] opacity-0 group-hover/bar:opacity-100"
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#ff0000] opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150"
                             style={{
-                                left: `var(--progress, 0%)`,
+                                left: `${progress}%`,
                                 boxShadow: '0 0 6px rgba(255,0,0,0.8)',
                                 opacity: seeking ? 1 : undefined,
-                                transition: 'opacity 150ms ease-in-out',
                             }}
                         />
                     </div>
                 </div>
 
                 {/* ── Buttons Row ── */}
-                <div className="flex items-center justify-between mt-1 px-1">
-                    {/* Left: Play, Volume, Time, Chapter pills */}
-                    <div className="flex items-center gap-2">
-                        {/* Play/Pause/Replay Pill */}
+                <div className="flex items-center justify-between">
+                    {/* Left: Play, Skip, Volume, Time */}
+                    <div className="flex items-center gap-1.5">
+                        {/* Play/Pause/Replay */}
                         <Tip label={ended ? 'Replay' : playing ? 'Pause (k)' : 'Play (k)'}>
                             <button
                                 onClick={togglePlay}
-                                className="w-[44px] h-[44px] flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all backdrop-blur-md"
+                                className="w-10 h-10 p-2 rounded-lg text-white hover:bg-white/10 active:scale-90 transition-all"
                             >
-                                <div className="w-5 h-5">{ended ? <ReplayIcon /> : playing ? <PauseIcon /> : <PlayIcon />}</div>
+                                {ended ? <ReplayIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
                             </button>
                         </Tip>
 
-                        {/* Volume Pill */}
-                        <div
-                            className="flex items-center gap-1 group/vol bg-white/20 hover:bg-white/30 rounded-full h-[44px] px-3 transition-all w-[44px] hover:w-[120px] overflow-hidden backdrop-blur-md cursor-pointer"
-                            onMouseEnter={() => setShowVolume(true)}
-                            onMouseLeave={() => setShowVolume(false)}
-                            onClick={(e) => {
-                                // Mute if clicking directly on the pill background/icon (not the slider)
-                                if (e.target.tagName !== 'INPUT') toggleMute();
-                            }}
-                        >
-                            <Tip label={muted || volume === 0 ? 'Unmute (m)' : 'Mute (m)'}>
-                                <div className="w-[20px] h-[20px] shrink-0 text-white transition-all">
-                                    <VolumeIcon />
-                                </div>
-                            </Tip>
-                            <div
-                                className="w-[66px] min-w-[66px] shrink-0 opacity-0 group-hover/vol:opacity-100 transition-opacity duration-300 flex items-center ml-1"
-                                onClick={(e) => e.stopPropagation()} // Prevent mute trigger when dragging
+                        {/* Skip back 10s */}
+                        <Tip label="−10s (j)">
+                            <button
+                                onClick={() => { videoRef.current.currentTime = Math.max(0, currentTime - 10); }}
+                                className="w-8 h-8 p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition-all"
                             >
-                                <input
-                                    type="range"
-                                    min={0} max={1} step={0.02}
-                                    value={muted ? 0 : volume}
-                                    onChange={onVolumeChange}
-                                    className="volume-slider w-full h-1 cursor-pointer"
-                                    style={{ '--vol': `${(muted ? 0 : volume) * 100}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Time Pill */}
-                        <div className="h-[44px] px-5 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md">
-                            <span className="text-white text-[13px] font-bold tracking-tight">
-                                {fmt(currentTime)} <span className="text-white/60 mx-1 font-normal">/</span> {fmt(duration)}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Right: Unified Pill for Tools */}
-                    <div className="h-[44px] px-5 rounded-[22px] bg-white/20 flex items-center gap-7 backdrop-blur-md">
-                        {/* Autoplay Toggle */}
-                        <Tip label="Autoplay is on">
-                            <div
-                                onClick={() => setAutoplayEnabled(!autoplayEnabled)}
-                                className={`w-[40px] h-[22px] rounded-full p-[2px] cursor-pointer flex flex-shrink-0 items-center transition-colors shadow-inner ${autoplayEnabled ? 'bg-white' : 'bg-white/40'}`}
-                            >
-                                <div className={`w-[18px] h-[18px] rounded-full bg-[#111] flex items-center justify-center transition-transform ${autoplayEnabled ? 'translate-x-[18px]' : 'translate-x-0'}`}>
-                                    {autoplayEnabled && <div className="w-[8px] h-[8px] text-white ml-[1px]"><PlayIcon /></div>}
-                                </div>
-                            </div>
+                                <SkipBackIcon />
+                            </button>
                         </Tip>
 
-                        {/* Settings with HD badge */}
-                        <div className="relative flex items-center justify-center flex-shrink-0">
-                            <Tip label="Settings">
+                        {/* Skip forward 10s */}
+                        <Tip label="+10s (l)">
+                            <button
+                                onClick={() => { videoRef.current.currentTime = Math.min(duration, currentTime + 10); }}
+                                className="w-8 h-8 p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition-all"
+                            >
+                                <SkipFwdIcon />
+                            </button>
+                        </Tip>
+
+                        {/* Volume */}
+                        <div
+                            className="flex items-center gap-1.5 group/vol"
+                            onMouseEnter={() => setShowVolume(true)}
+                            onMouseLeave={() => setShowVolume(false)}
+                        >
+                            <Tip label={muted || volume === 0 ? 'Unmute (m)' : 'Mute (m)'}>
                                 <button
-                                    onClick={() => setSettingsMenuState(prev => prev === 'closed' ? 'main' : 'closed')}
-                                    className={`w-5 h-5 transition-all active:scale-95 ${settingsMenuState !== 'closed' ? 'text-white rotate-45 scale-110' : 'text-white hover:opacity-80'}`}
+                                    onClick={toggleMute}
+                                    className="w-8 h-8 p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition-all"
                                 >
-                                    <SettingsIcon />
+                                    <VolumeIcon />
                                 </button>
                             </Tip>
-
-                            {/* HD Badge */}
-                            {(quality === '1080p' || quality === '720p' || quality === 'Auto') && (
-                                <div className="absolute -top-1.5 -right-3 bg-red-600 shadow-sm text-white text-[8px] font-black px-[3px] py-[1px] rounded-[3px] pointer-events-none tracking-tighter leading-none border border-black/20">
-                                    HD
-                                </div>
-                            )}
-
-                            <AnimatePresence mode="wait">
-                                {settingsMenuState !== 'closed' && (
+                            <AnimatePresence>
+                                {showVolume && (
                                     <motion.div
-                                        key={settingsMenuState}
+                                        initial={{ width: 0, opacity: 0 }}
+                                        animate={{ width: 72, opacity: 1 }}
+                                        exit={{ width: 0, opacity: 0 }}
+                                        transition={{ duration: 0.18 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <input
+                                            type="range"
+                                            min={0} max={1} step={0.02}
+                                            value={muted ? 0 : volume}
+                                            onChange={onVolumeChange}
+                                            className="volume-slider w-[72px] h-1 accent-red-500 cursor-pointer"
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Time */}
+                        <span className="text-white/80 text-[11px] font-mono font-bold ml-1 tracking-tight">
+                            {fmt(currentTime)}<span className="text-white/35 mx-0.5">/</span>{fmt(duration)}
+                        </span>
+                    </div>
+
+                    {/* Right: Speed, Quality, PiP, Fullscreen */}
+                    <div className="flex items-center gap-0.5">
+                        {/* Playback Speed */}
+                        <div className="relative">
+                            <Tip label="Playback speed">
+                                <button
+                                    onClick={() => { setShowSpeedMenu(p => !p); setShowQualityMenu(false); }}
+                                    className={`text-[11px] font-black px-2 py-1 rounded-lg transition-all ${showSpeedMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                                >
+                                    {playbackRate === 1 ? '1×' : `${playbackRate}×`}
+                                </button>
+                            </Tip>
+                            <AnimatePresence>
+                                {showSpeedMenu && (
+                                    <motion.div
                                         initial={{ opacity: 0, y: 8, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-1 min-w-[200px]"
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[100px]"
                                     >
-                                        {/* ─── Main View ─── */}
-                                        {settingsMenuState === 'main' && (
-                                            <>
-                                                <button
-                                                    onClick={() => setSettingsMenuState('speed')}
-                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M10 8v8l6-4-6-4zm11.54-1.38C20.8 4.44 18.55 3 16 3H8C5.45 3 3.2 4.44 2.46 6.62L1 12l1.46 5.38C3.2 19.56 5.45 21 8 21h8c2.55 0 4.8-1.44 5.54-3.62L23 12l-1.46-5.38zM21 12l-1.26 4.63C19.22 18.38 17.73 19 16 19H8c-1.73 0-3.22-.62-3.74-2.37L3 12l1.26-4.63C4.78 5.62 6.27 5 8 5h8c1.73 0 3.22.62 3.74 2.37L21 12z" /></svg>
-                                                        Playback speed
-                                                    </span>
-                                                    <span className="text-white/50 text-[11px]">
-                                                        {playbackRate === 1 ? 'Normal' : `${playbackRate}×`}
-                                                    </span>
-                                                </button>
-                                                <button
-                                                    onClick={() => setSettingsMenuState('quality')}
-                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M15 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V9l-6-6zM5 19V5h9v5h5v9H5zm4-4h6v2H9v-2zm0-4h6v2H9v-2z" /></svg>
-                                                        Quality
-                                                    </span>
-                                                    <span className="text-white/50 text-[11px] flex items-center gap-1">
-                                                        {isTranscoding && (
-                                                            <svg className="w-3 h-3 animate-spin text-yellow-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                                                        )}
-                                                        {quality}
-                                                    </span>
-                                                </button>
-                                            </>
-                                        )}
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Speed</div>
+                                        {SPEEDS.map(s => (
+                                            <button
+                                                key={s}
+                                                onClick={() => setSpeed(s)}
+                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${playbackRate === s ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                {s === 1 ? 'Normal' : `${s}×`}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
 
-                                        {/* ─── Speed Submenu ─── */}
-                                        {settingsMenuState === 'speed' && (
-                                            <>
-                                                <button
-                                                    onClick={() => setSettingsMenuState('main')}
-                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors border-b border-white/10"
-                                                >
-                                                    <span className="text-sm">←</span>
-                                                    Playback speed
-                                                </button>
-                                                {SPEEDS.map(s => (
-                                                    <button
-                                                        key={s}
-                                                        onClick={() => setSpeed(s)}
-                                                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${playbackRate === s
-                                                            ? 'text-white bg-white/10'
-                                                            : 'text-white/70 hover:text-white hover:bg-white/5'
-                                                            }`}
-                                                    >
-                                                        <span>{s === 1 ? 'Normal' : `${s}×`}</span>
-                                                        {playbackRate === s && <span className="text-[10px]">✓</span>}
-                                                    </button>
-                                                ))}
-                                            </>
-                                        )}
-
-                                        {/* Quality Sub-menu */}
-                                        {settingsMenuState === 'quality' && (
-                                            <>
-                                                <button
-                                                    onClick={() => setSettingsMenuState('main')}
-                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors border-b border-white/10"
-                                                >
-                                                    <span className="text-sm">←</span>
-                                                    <span className="flex items-center gap-2">
-                                                        Quality
-                                                        {isTranscoding && (
-                                                            <span className="inline-flex items-center gap-1 text-yellow-400 text-[10px] normal-case tracking-normal">
-                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                                                                Processing…
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                </button>
-                                                {QUALITIES.map(q => (
-                                                    <button
-                                                        key={q}
-                                                        onClick={() => changeQuality(q)}
-                                                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q
-                                                            ? 'text-white bg-white/10'
-                                                            : 'text-white/70 hover:text-white hover:bg-white/5'
-                                                            }`}
-                                                    >
-                                                        <span>{q}</span>
-                                                        {quality === q && <span className="text-[10px]">✓</span>}
-                                                    </button>
-                                                ))}
-                                            </>
-                                        )}
+                        {/* Quality Settings */}
+                        <div className="relative">
+                            <Tip label="Settings">
+                                <button
+                                    onClick={() => { setShowQualityMenu(p => !p); setShowSpeedMenu(false); }}
+                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${showQualityMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
+                                >
+                                    <SettingsIcon />
+                                </button>
+                            </Tip>
+                            <AnimatePresence>
+                                {showQualityMenu && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[120px]"
+                                    >
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Quality</div>
+                                        {QUALITIES.map(q => (
+                                            <button
+                                                key={q}
+                                                onClick={() => { setQuality(q); setShowQualityMenu(false); }}
+                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                <span>{q}</span>
+                                                {quality === q && <span className="text-[10px]">&bull;</span>}
+                                            </button>
+                                        ))}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -789,7 +572,7 @@ const VideoPlayer = ({ src, poster, onError,
                             <Tip label={pipActive ? 'Exit PiP' : 'Picture-in-picture'}>
                                 <button
                                     onClick={togglePip}
-                                    className={`w-5 h-5 flex-shrink-0 transition-all active:scale-95 ${pipActive ? 'text-blue-400' : 'text-white hover:opacity-80'}`}
+                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${pipActive ? 'text-white bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
                                 >
                                     <PipIcon />
                                 </button>
@@ -800,14 +583,14 @@ const VideoPlayer = ({ src, poster, onError,
                         <Tip label={fullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'}>
                             <button
                                 onClick={toggleFullscreen}
-                                className="w-5 h-5 text-white hover:opacity-80 active:scale-95 transition-all flex-shrink-0"
+                                className="w-8 h-8 p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition-all"
                             >
                                 {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
                             </button>
                         </Tip>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

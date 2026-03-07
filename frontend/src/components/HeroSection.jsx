@@ -82,7 +82,7 @@ const HeroSection = ({ videos }) => {
     const animDuration = `${(baseP / 250).toFixed(1)}s`;
 
     return (
-        <div className="relative w-full max-w-[95%] mx-auto mt-4 rounded-3xl overflow-hidden h-[55vh] bg-black shadow-[0_0_50px_rgba(239,68,68,0.15)] border border-primary/20">
+        <div className="relative w-full max-w-[95%] mx-auto mt-4 rounded-3xl overflow-hidden h-[55vh] bg-black shadow-[0_0_50px_rgba(239,68,68,0.15)] border border-primary/20 transition-all duration-500">
 
             {/* ── TOP-LEFT: Trending Badge (fixed, above motion layer) ── */}
             <div className="absolute top-6 left-6 z-30 flex flex-col items-start gap-1.5">
@@ -209,7 +209,6 @@ const HeroSection = ({ videos }) => {
                     transition={{ duration: 0.5 }}
                     className="absolute inset-0 flex cursor-grab active:cursor-grabbing z-10"
                     drag="x"
-                    dragDirectionLock={true}
                     dragConstraints={{ left: 0, right: 0 }}
                     dragElastic={0.2}
                     onDragEnd={(e, { offset }) => {
