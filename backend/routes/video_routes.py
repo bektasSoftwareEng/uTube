@@ -205,8 +205,6 @@ async def upload_video(
 ):
     video_path = None
     thumbnail_path = None
-<<<<<<< Updated upstream
-=======
     thumbnail_filename = None
     thumbnail_success = False
 
@@ -217,16 +215,6 @@ async def upload_video(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ban_reason
         )
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     
     try:
         print(f"[UPLOAD] Starting video upload for user {current_user.username} - Title: {title}")

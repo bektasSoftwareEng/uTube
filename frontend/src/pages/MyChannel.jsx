@@ -215,27 +215,6 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
     const [confirmRemove, setConfirmRemove] = useState(false);
     const [removing, setRemoving] = useState(false);
 
-    const handleRemoveBanner = async () => {
-        setRemoving(true);
-        try {
-            const formData = new FormData();
-            formData.append('description', description.trim());
-            formData.append('remove_banner', 'true');
-            const res = await ApiClient.put('/auth/me/channel', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
-            window.dispatchEvent(new Event('authChange'));
-            toast.success('Banner removed!');
-            onSaved(res.data);
-            setConfirmRemove(false);
-        } catch (err) {
-            toast.error(err.response?.data?.detail || 'Failed to remove banner');
-        } finally {
-            setRemoving(false);
-        }
-    };
-
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -273,8 +252,25 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
 
     // Use current banner URL or fallback if no live preview
     const currentBannerUrl = user?.channel_banner_url
-        ? getValidUrl(`/uploads/banners/${user.channel_banner_url}`)
+        ? getValidUrl(`/storage/uploads/banners/${user.channel_banner_url}`)
         : null;
+
+    const handleRemoveBanner = async () => {
+        setRemoving(true);
+        try {
+            const res = await ApiClient.delete('/auth/me/banner');
+            localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+            window.dispatchEvent(new Event('authChange'));
+            toast.success('Banner removed!');
+            onSaved(res.data);
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove banner');
+        } finally {
+            setRemoving(false);
+            setConfirmRemove(false);
+        }
+    };
 
     return (
         <motion.div
@@ -338,6 +334,29 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                             )}
                         </div>
                         <p className="text-[10px] text-white/40 mt-1.5 ml-1">JPEG, PNG or WEBP. At least 1024x288px recommended.</p>
+
+                        {/* Banner Position Slider */}
+                        {(previewUrl || currentBannerUrl) && (
+                            <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Focal Point</label>
+                                    <span className="text-[10px] font-mono text-primary font-bold">{bannerPosition}%</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={bannerPosition}
+                                    onChange={(e) => setBannerPosition(Number(e.target.value))}
+                                    className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(229,9,20,0.5)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/30 [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                                <div className="flex justify-between text-[9px] text-white/30 mt-1">
+                                    <span>Top</span>
+                                    <span>Center</span>
+                                    <span>Bottom</span>
+                                </div>
+                            </div>
+                        )}
                         {/* Remove Banner Button */}
                         {user?.channel_banner_url && !previewUrl && (
                             <div className="mt-2">
@@ -375,22 +394,6 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                             </div>
                         )}
                     </div>
-
-                    {/* Banner Position Slider */}
-                    {(previewUrl || currentBannerUrl) && (
-                        <div>
-                            <label className="text-xs font-bold text-white/50 uppercase tracking-widest mb-1.5 block">Banner Vertical Position</label>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value={bannerPosition}
-                                onChange={(e) => setBannerPosition(Number(e.target.value))}
-                                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-                            />
-                            <p className="text-[10px] text-white/40 mt-1.5 ml-1">Adjusts how the banner image is vertically aligned.</p>
-                        </div>
-                    )}
 
                     {/* Description Textarea */}
                     <div>
@@ -661,7 +664,7 @@ const MyChannel = () => {
 
                 {/* ─── Channel Header ─────────────────────────────────────── */}
                 <div className="mb-12">
-                    {/* Animated LED Border Banner */}
+                    {/* Banner Image or Fallback Gradient */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}

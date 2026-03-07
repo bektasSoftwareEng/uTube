@@ -167,7 +167,9 @@ const Navbar = () => {
     // ── Time ago helper ──
     const timeAgo = (dateStr) => {
         const now = new Date();
-        const date = new Date(dateStr);
+        // Ensure the date string is treated as UTC
+        const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+        const date = new Date(utcStr);
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
         if (diffMins < 1) return 'Just now';
@@ -244,7 +246,7 @@ const Navbar = () => {
 
                             {/* Welcome Text */}
                             <span className="hidden sm:block text-sm font-black text-white italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
-                                Welcome, <span className="text-primary">{user?.username || 'User'}</span>
+                                Welcome, <span className="text-primary truncate max-w-[150px] inline-block align-bottom">{user?.username || 'User'}</span>
                             </span>
 
                             {/* ── Notification Bell (functional) ── */}
@@ -385,8 +387,30 @@ const Navbar = () => {
                                                     Signed in as
                                                 </p>
                                                 <p className="font-bold text-white truncate text-sm">@{user?.username || 'Member'}</p>
-                                                <p className="text-[10px] font-medium text-primary uppercase tracking-tighter mt-1 opacity-60">ID: {user?.id || '—'}</p>
+
                                             </div>
+
+                                            <Link
+                                                to="/profile"
+                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
+                                                onClick={() => setIsMenuOpen(false)}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                My Profile
+                                            </Link>
+
+                                            <Link
+                                                to="/my-channel"
+                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
+                                                onClick={() => setIsMenuOpen(false)}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                                My Channel
+                                            </Link>
 
                                             <Link
                                                 to="/dashboard"
@@ -399,19 +423,6 @@ const Navbar = () => {
                                                 Dashboard
                                             </Link>
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                                            <Link
-                                                to={`/channel/@${user?.username}`}
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                             {/* Admin Panel link — visible only to admins */}
                                             {user?.is_admin && (
                                                 <Link
@@ -429,58 +440,16 @@ const Navbar = () => {
                                             {/* Notifications link */}
                                             <Link
                                                 to="/notifications"
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
                                                 onClick={() => setIsMenuOpen(false)}
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                                My Channel
-                                            </Link>
-
-                                            <Link
-                                                to="/profile"
-                                                className="block px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
-                                                onClick={() => setIsMenuOpen(false)}
-                                            >
-                                                My Profile
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                                                 </svg>
                                                 Notice
                                                 {unreadWarnings > 0 && (
                                                     <span className="ml-auto bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadWarnings}</span>
                                                 )}
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                             </Link>
 
                                             <button

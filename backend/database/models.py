@@ -43,52 +43,22 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     
     # Profile Information
-<<<<<<< Updated upstream
     profile_image = Column(String(255), nullable=True, default="default_avatar.png")
-=======
-    profile_image = Column(String(255), nullable=True)
     channel_description = Column(Text, nullable=True)
     channel_banner_url = Column(String(255), nullable=True)
     banner_position = Column(Integer, nullable=True, default=50)  # 0-100 vertical focal point %
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
     is_live = Column(Boolean, default=False, nullable=False, index=True)
     viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
-    channel_description = Column(Text, nullable=True)
-    channel_banner_url = Column(String(255), nullable=True)
     
     # Email Verification
     is_verified = Column(Boolean, default=False, nullable=False)
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
-
-    # Admin Fields
-    is_admin = Column(Boolean, default=False, nullable=False)
-    upload_banned = Column(Boolean, default=False, nullable=False)
-    upload_ban_reason = Column(Text, nullable=True)
-
-    # Admin Fields
-    is_admin = Column(Boolean, default=False, nullable=False)
-    upload_banned = Column(Boolean, default=False, nullable=False)
-    upload_ban_reason = Column(Text, nullable=True)
-
-    # Admin Fields
-    is_admin = Column(Boolean, default=False, nullable=False)
-    upload_banned = Column(Boolean, default=False, nullable=False)
-    upload_ban_reason = Column(Text, nullable=True)
 
     # Admin Fields
     is_admin = Column(Boolean, default=False, nullable=False)
@@ -425,8 +395,6 @@ class CommentLike(Base):
     
     def __repr__(self):
         return f"<CommentLike(id={self.id}, user={self.user_id}, comment={self.comment_id}, dislike={self.is_dislike})>"
-<<<<<<< Updated upstream
-=======
 
 
 class StreamLike(Base):
@@ -592,13 +560,3 @@ class AdminWarning(Base):
 
     def __repr__(self):
         return f"<AdminWarning(id={self.id}, target_user={self.target_user_id}, title='{self.title[:30]}')>"
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes

@@ -75,18 +75,6 @@ const Tip = ({ label, children }) => (
 );
 
 // ── Main Component ────────────────────────────────────────────────────────────
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-const VideoPlayer = ({ src, poster, onError }) => {
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 const VideoPlayer = ({ src, poster, onError,
     availableResolutions,
     transcodeStatus,
@@ -94,23 +82,15 @@ const VideoPlayer = ({ src, poster, onError,
     channelName,
     onAutoplayEnd
 }) => {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     const videoRef = useRef(null);
     const containerRef = useRef(null);
     const progressRef = useRef(null);
     const hideTimer = useRef(null);
+    const idleTimerRef = useRef(null);
 
     const [playing, setPlaying] = useState(false);
     const [ended, setEnded] = useState(false);
+    const [buffering, setBuffering] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [buffered, setBuffered] = useState(0);
@@ -123,39 +103,14 @@ const VideoPlayer = ({ src, poster, onError,
         return saved === 'true';
     });
     const [fullscreen, setFullscreen] = useState(false);
-    const [showControls, setShowControls] = useState(true);
+    const [isIdle, setIsIdle] = useState(false);
     const [seeking, setSeeking] = useState(false);
     const [hoverTime, setHoverTime] = useState(null);
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-    const [hoverX, setHoverX] = useState(0);
-    const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-    const [showQualityMenu, setShowQualityMenu] = useState(false);
-    const [playbackRate, setPlaybackRate] = useState(1);
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     const [settingsMenuState, setSettingsMenuState] = useState('closed');
     const [playbackRate, setPlaybackRate] = useState(() => {
         const saved = localStorage.getItem('utube_playbackRate');
         return saved !== null ? parseFloat(saved) : 1;
     });
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     const [quality, setQuality] = useState('Auto');
     const [pipActive, setPipActive] = useState(false);
     const [showVolume, setShowVolume] = useState(false);
@@ -163,37 +118,10 @@ const VideoPlayer = ({ src, poster, onError,
     const [skipIndicator, setSkipIndicator] = useState(null); // { type: 'forward' | 'backward', key: number }
 
     const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-    const QUALITIES = ['Auto', '1080p HD', '720p', '480p', '360p'];
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-    // ── Auto-hide controls ──────────────────────────────────────────────────
-    const scheduleHide = useCallback(() => {
-        clearTimeout(hideTimer.current);
-        hideTimer.current = setTimeout(() => {
-            if (playing && !showSpeedMenu && !showQualityMenu) setShowControls(false);
-        }, 2800);
-    }, [playing, showSpeedMenu, showQualityMenu]);
-=======
     // Override Quality list specifically formatted per the new user request
     const QUALITIES = React.useMemo(() => {
         return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
-=======
-    // Override Quality list specifically formatted per the new user request
-    const QUALITIES = React.useMemo(() => {
-        return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
-=======
-    // Override Quality list specifically formatted per the new user request
-    const QUALITIES = React.useMemo(() => {
-        return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
->>>>>>> Stashed changes
-=======
-    // Override Quality list specifically formatted per the new user request
-    const QUALITIES = React.useMemo(() => {
-        return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
->>>>>>> Stashed changes
     }, []);
 
     const isTranscoding = transcodeStatus === 'processing';
@@ -208,37 +136,34 @@ const VideoPlayer = ({ src, poster, onError,
         idleTimerRef.current = setTimeout(() => {
             if (settingsMenuClosedRef.current) setIsIdle(true);
         }, IDLE_DELAY_MS);
->>>>>>> Stashed changes
     }, []);
->>>>>>> Stashed changes
 
-    const revealControls = useCallback(() => {
-        setShowControls(true);
-        scheduleHide();
-    }, [scheduleHide]);
+    const handleActivity = useCallback(() => {
+        setIsIdle(false);
+        startIdleTimer();
+    }, [startIdleTimer]);
 
-    useEffect(() => { return () => clearTimeout(hideTimer.current); }, []);
-    useEffect(() => { if (playing) scheduleHide(); else setShowControls(true); }, [playing, scheduleHide]);
+    useEffect(() => {
+        return () => clearTimeout(idleTimerRef.current);
+    }, []);
+
+    // When playing starts, start idle timer; when paused/ended, show overlays
+    useEffect(() => {
+        if (playing) startIdleTimer();
+        else setIsIdle(false);
+    }, [playing, startIdleTimer]);
+
+    // Show overlays when not idle OR when paused/ended (always show controls when paused)
+    const showOverlays = !isIdle || !playing;
+    const revealControls = handleActivity;
 
     // ── Video event bindings ────────────────────────────────────────────────
     useEffect(() => {
         const v = videoRef.current;
         if (!v) return;
 
-        const onPlay = () => { setPlaying(true); setEnded(false); };
+        const onPlay = () => { setPlaying(true); setEnded(false); setBuffering(false); };
         const onPause = () => setPlaying(false);
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        const onEnded = () => { setPlaying(false); setEnded(true); setShowControls(true); };
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         const onEnded = () => {
             setPlaying(false);
             setEnded(true);
@@ -247,16 +172,6 @@ const VideoPlayer = ({ src, poster, onError,
                 onAutoplayEnd();
             }
         };
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         const onTimeUpdate = () => {
             setCurrentTime(v.currentTime);
             if (v.buffered.length > 0) {
@@ -270,6 +185,9 @@ const VideoPlayer = ({ src, poster, onError,
         };
         const onVolumeChange = () => { setVolume(v.volume); setMuted(v.muted); };
         const onRateChange = () => setPlaybackRate(v.playbackRate);
+        const onWaiting = () => setBuffering(true);
+        const onCanPlay = () => setBuffering(false);
+        const onPlaying = () => setBuffering(false);
 
         v.addEventListener('play', onPlay);
         v.addEventListener('pause', onPause);
@@ -279,21 +197,9 @@ const VideoPlayer = ({ src, poster, onError,
         v.addEventListener('loadedmetadata', onLoadedMetadata);
         v.addEventListener('volumechange', onVolumeChange);
         v.addEventListener('ratechange', onRateChange);
-
-        // Sync initial persisted values to the video element DOM when mounted
-        v.volume = volume;
-        v.muted = muted;
-        v.playbackRate = playbackRate;
-
-        // Sync initial persisted values to the video element DOM when mounted
-        v.volume = volume;
-        v.muted = muted;
-        v.playbackRate = playbackRate;
-
-        // Sync initial persisted values to the video element DOM when mounted
-        v.volume = volume;
-        v.muted = muted;
-        v.playbackRate = playbackRate;
+        v.addEventListener('waiting', onWaiting);
+        v.addEventListener('canplay', onCanPlay);
+        v.addEventListener('playing', onPlaying);
 
         // Sync initial persisted values to the video element DOM when mounted
         v.volume = volume;
@@ -317,6 +223,9 @@ const VideoPlayer = ({ src, poster, onError,
             v.removeEventListener('loadedmetadata', onLoadedMetadata);
             v.removeEventListener('volumechange', onVolumeChange);
             v.removeEventListener('ratechange', onRateChange);
+            v.removeEventListener('waiting', onWaiting);
+            v.removeEventListener('canplay', onCanPlay);
+            v.removeEventListener('playing', onPlaying);
         };
     }, [autoplayEnabled, onAutoplayEnd]);
 
@@ -435,7 +344,45 @@ const VideoPlayer = ({ src, poster, onError,
         if (!v) return;
         v.playbackRate = rate;
         setPlaybackRate(rate);
-        setShowSpeedMenu(false);
+        setSettingsMenuState('closed');
+    };
+
+    const changeQuality = (q) => {
+        setQuality(q);
+        setSettingsMenuState('closed');
+
+        // Resolve the new source URL
+        let newSrc = src; // Default: original src prop
+        if (q !== 'Auto' && availableResolutions && availableResolutions[q]) {
+            // Build full URL from the resolution path
+            const mediaBase = import.meta.env.VITE_MEDIA_BASE_URL || '';
+            const resPath = availableResolutions[q];
+            newSrc = resPath.startsWith('http') ? resPath : `${mediaBase}${resPath}`;
+        }
+
+        const v = videoRef.current;
+        if (!v) return;
+
+        // If src is already the same, no need to reload
+        const currentSrc = v.currentSrc || v.src || '';
+        if (currentSrc.endsWith(newSrc) || currentSrc === newSrc) return;
+
+        // Save state before switching
+        const savedTime = v.currentTime;
+        const savedRate = v.playbackRate;
+        const wasPlaying = !v.paused;
+
+        // Switch source and restore state
+        v.src = newSrc;
+        v.load();
+
+        const onReady = () => {
+            v.currentTime = savedTime;
+            v.playbackRate = savedRate;
+            if (wasPlaying) v.play().catch(() => { });
+            v.removeEventListener('loadedmetadata', onReady);
+        };
+        v.addEventListener('loadedmetadata', onReady);
     };
 
     // ── Progress bar interaction ─────────────────────────────────────────────
@@ -494,22 +441,10 @@ const VideoPlayer = ({ src, poster, onError,
     return (
         <div
             ref={containerRef}
-            className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group"
-            onMouseMove={revealControls}
-            onMouseLeave={() => { if (playing) setShowControls(false); }}
+            className={`relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-none group transition-[cursor] duration-300 ${isIdle ? 'cursor-none' : ''}`}
+            onMouseMove={handleActivity}
             onDoubleClick={toggleFullscreen}
         >
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             {/* ── Top Info Bar (title only, visible only in fullscreen) ── */}
             <div
                 className={`absolute top-0 left-0 w-full z-50 bg-gradient-to-b from-black/80 to-transparent px-8 py-6 transition-opacity duration-300 ease-in-out ${showOverlays && fullscreen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -519,7 +454,6 @@ const VideoPlayer = ({ src, poster, onError,
                 )}
             </div>
 
->>>>>>> Stashed changes
             {/* ── Video Element ── */}
             <video
                 ref={videoRef}
@@ -534,11 +468,32 @@ const VideoPlayer = ({ src, poster, onError,
                 autoPlay
             />
 
-            {/* ── Centre Play/Pause Flash ── */}
+            {/* ── Buffering Spinner ── */}
             <AnimatePresence>
-                {!playing && !ended && (
+                {buffering && playing && (
                     <motion.div
-                        key="centrePlay"
+                        key="buffering"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+                    >
+                        <div className="w-16 h-16">
+                            <svg className="animate-spin w-full h-full text-white/70" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Centre Play/Replay Overlay ── */}
+            <AnimatePresence>
+                {(!playing || ended) && !buffering && (
+                    <motion.div
+                        key={ended ? 'centreReplay' : 'centrePlay'}
                         initial={{ opacity: 0, scale: 0.7 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
@@ -546,67 +501,9 @@ const VideoPlayer = ({ src, poster, onError,
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                     >
                         <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/10">
-                            <div className="w-10 h-10 text-white translate-x-0.5"><PlayIcon /></div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── Skip Indicator Overlay ── */}
-            <AnimatePresence>
-                {skipIndicator && (
-                    <motion.div
-                        key={skipIndicator.key}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`absolute top-1/2 -translate-y-1/2 ${skipIndicator.type === 'forward' ? 'right-24' : 'left-24'} pointer-events-none z-50`}
-                    >
-                        <div className="bg-black/40 backdrop-blur-sm px-6 py-4 rounded-full text-white font-bold text-2xl tracking-widest flex items-center gap-2 shadow-2xl border border-white/10">
-                            {skipIndicator.type === 'backward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>}
-                            {skipIndicator.type === 'backward' ? '- 10' : '+ 10'}
-                            {skipIndicator.type === 'forward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── Skip Indicator Overlay ── */}
-            <AnimatePresence>
-                {skipIndicator && (
-                    <motion.div
-                        key={skipIndicator.key}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`absolute top-1/2 -translate-y-1/2 ${skipIndicator.type === 'forward' ? 'right-24' : 'left-24'} pointer-events-none z-50`}
-                    >
-                        <div className="bg-black/40 backdrop-blur-sm px-6 py-4 rounded-full text-white font-bold text-2xl tracking-widest flex items-center gap-2 shadow-2xl border border-white/10">
-                            {skipIndicator.type === 'backward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>}
-                            {skipIndicator.type === 'backward' ? '- 10' : '+ 10'}
-                            {skipIndicator.type === 'forward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── Skip Indicator Overlay ── */}
-            <AnimatePresence>
-                {skipIndicator && (
-                    <motion.div
-                        key={skipIndicator.key}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`absolute top-1/2 -translate-y-1/2 ${skipIndicator.type === 'forward' ? 'right-24' : 'left-24'} pointer-events-none z-50`}
-                    >
-                        <div className="bg-black/40 backdrop-blur-sm px-6 py-4 rounded-full text-white font-bold text-2xl tracking-widest flex items-center gap-2 shadow-2xl border border-white/10">
-                            {skipIndicator.type === 'backward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>}
-                            {skipIndicator.type === 'backward' ? '- 10' : '+ 10'}
-                            {skipIndicator.type === 'forward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>}
+                            <div className="w-10 h-10 text-white translate-x-0.5">
+                                {ended ? <ReplayIcon /> : <PlayIcon />}
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -634,21 +531,15 @@ const VideoPlayer = ({ src, poster, onError,
 
             {/* ── Bottom gradient fade ── */}
             <div
-                className="absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300"
+                className={`absolute inset-x-0 bottom-0 h-40 pointer-events-none transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0'}`}
                 style={{
                     background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
-                    opacity: showControls ? 1 : 0,
                 }}
             />
 
             {/* ── Glass Controls ── */}
-            <motion.div
-                animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 8 }}
-                transition={{ duration: 0.22, ease: "easeOut" }}
-                className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3"
-                style={{
-                    pointerEvents: showControls ? 'auto' : 'none',
-                }}
+            <div
+                className={`absolute inset-x-0 bottom-0 px-4 pb-4 pt-4 flex flex-col gap-3 transition-opacity duration-300 ease-in-out ${showOverlays ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Progress Track ── */}
@@ -731,36 +622,6 @@ const VideoPlayer = ({ src, poster, onError,
                                     <VolumeIcon />
                                 </div>
                             </Tip>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                            <AnimatePresence>
-                                {showVolume && (
-                                    <motion.div
-                                        initial={{ width: 0, opacity: 0 }}
-                                        animate={{ width: 72, opacity: 1 }}
-                                        exit={{ width: 0, opacity: 0 }}
-                                        transition={{ duration: 0.18 }}
-                                        className="overflow-hidden"
-                                    >
-                                        <input
-                                            type="range"
-                                            min={0} max={1} step={0.02}
-                                            value={muted ? 0 : volume}
-                                            onChange={onVolumeChange}
-                                            className="volume-slider w-[72px] h-1 accent-red-500 cursor-pointer"
-                                        />
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                             <div
                                 className="w-[66px] min-w-[66px] shrink-0 opacity-0 group-hover/vol:opacity-100 transition-opacity duration-300 flex items-center ml-1"
                                 onClick={(e) => e.stopPropagation()} // Prevent mute trigger when dragging
@@ -774,10 +635,6 @@ const VideoPlayer = ({ src, poster, onError,
                                     style={{ '--vol': `${(muted ? 0 : volume) * 100}%` }}
                                 />
                             </div>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
                         </div>
 
                         {/* Time Pill */}
@@ -788,16 +645,6 @@ const VideoPlayer = ({ src, poster, onError,
                         </div>
                     </div>
 
-<<<<<<< Updated upstream
-                    {/* Right: Speed, Quality, PiP, Fullscreen */}
-                    <div className="flex items-center gap-0.5">
-                        {/* Playback Speed */}
-                        <div className="relative">
-                            <Tip label="Playback speed">
-                                <button
-                                    onClick={() => { setShowSpeedMenu(p => !p); setShowQualityMenu(false); }}
-                                    className={`text-[11px] font-black px-2 py-1 rounded-lg transition-all ${showSpeedMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-=======
                     {/* Right: Unified Pill for Tools */}
                     <div className="h-[44px] px-5 rounded-[22px] bg-white/20 flex items-center gap-7 backdrop-blur-md">
                         {/* Autoplay Toggle */}
@@ -818,142 +665,10 @@ const VideoPlayer = ({ src, poster, onError,
                                 <button
                                     onClick={() => setSettingsMenuState(prev => prev === 'closed' ? 'main' : 'closed')}
                                     className={`w-5 h-5 transition-all active:scale-95 ${settingsMenuState !== 'closed' ? 'text-white rotate-45 scale-110' : 'text-white hover:opacity-80'}`}
->>>>>>> Stashed changes
-                                >
-                                    {playbackRate === 1 ? '1×' : `${playbackRate}×`}
-                                </button>
-                            </Tip>
-<<<<<<< Updated upstream
-                            <AnimatePresence>
-                                {showSpeedMenu && (
-=======
-
-                            {/* HD Badge */}
-                            {(quality === '1080p' || quality === '720p' || quality === 'Auto') && (
-                                <div className="absolute -top-1.5 -right-3 bg-red-600 shadow-sm text-white text-[8px] font-black px-[3px] py-[1px] rounded-[3px] pointer-events-none tracking-tighter leading-none border border-black/20">
-                                    HD
-                                </div>
-                            )}
-
-                            <AnimatePresence mode="wait">
-                                {settingsMenuState !== 'closed' && (
->>>>>>> Stashed changes
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                                        transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[100px]"
-                                    >
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Speed</div>
-                                        {SPEEDS.map(s => (
-                                            <button
-                                                key={s}
-                                                onClick={() => setSpeed(s)}
-                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${playbackRate === s ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                {s === 1 ? 'Normal' : `${s}×`}
-                                            </button>
-                                        ))}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-<<<<<<< Updated upstream
-                        {/* Quality Settings */}
-                        <div className="relative">
-=======
-                        </div>
-
-=======
-                        </div>
-
->>>>>>> Stashed changes
-                        {/* Time Pill */}
-                        <div className="h-[44px] px-5 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md">
-                            <span className="text-white text-[13px] font-bold tracking-tight">
-                                {fmt(currentTime)} <span className="text-white/60 mx-1 font-normal">/</span> {fmt(duration)}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Right: Unified Pill for Tools */}
-                    <div className="h-[44px] px-5 rounded-[22px] bg-white/20 flex items-center gap-7 backdrop-blur-md">
-                        {/* Autoplay Toggle */}
-                        <Tip label="Autoplay is on">
-                            <div
-                                onClick={() => setAutoplayEnabled(!autoplayEnabled)}
-                                className={`w-[40px] h-[22px] rounded-full p-[2px] cursor-pointer flex flex-shrink-0 items-center transition-colors shadow-inner ${autoplayEnabled ? 'bg-white' : 'bg-white/40'}`}
-                            >
-                                <div className={`w-[18px] h-[18px] rounded-full bg-[#111] flex items-center justify-center transition-transform ${autoplayEnabled ? 'translate-x-[18px]' : 'translate-x-0'}`}>
-                                    {autoplayEnabled && <div className="w-[8px] h-[8px] text-white ml-[1px]"><PlayIcon /></div>}
-                                </div>
-                            </div>
-                        </Tip>
-
-                        {/* Settings with HD badge */}
-                        <div className="relative flex items-center justify-center flex-shrink-0">
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-                            <Tip label="Settings">
-                                <button
-                                    onClick={() => { setShowQualityMenu(p => !p); setShowSpeedMenu(false); }}
-                                    className={`w-8 h-8 p-1.5 rounded-lg transition-all ${showQualityMenu ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'} active:scale-90`}
-=======
-                        </div>
-
-                        {/* Time Pill */}
-                        <div className="h-[44px] px-5 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md">
-                            <span className="text-white text-[13px] font-bold tracking-tight">
-                                {fmt(currentTime)} <span className="text-white/60 mx-1 font-normal">/</span> {fmt(duration)}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Right: Unified Pill for Tools */}
-                    <div className="h-[44px] px-5 rounded-[22px] bg-white/20 flex items-center gap-7 backdrop-blur-md">
-                        {/* Autoplay Toggle */}
-                        <Tip label="Autoplay is on">
-                            <div
-                                onClick={() => setAutoplayEnabled(!autoplayEnabled)}
-                                className={`w-[40px] h-[22px] rounded-full p-[2px] cursor-pointer flex flex-shrink-0 items-center transition-colors shadow-inner ${autoplayEnabled ? 'bg-white' : 'bg-white/40'}`}
-                            >
-                                <div className={`w-[18px] h-[18px] rounded-full bg-[#111] flex items-center justify-center transition-transform ${autoplayEnabled ? 'translate-x-[18px]' : 'translate-x-0'}`}>
-                                    {autoplayEnabled && <div className="w-[8px] h-[8px] text-white ml-[1px]"><PlayIcon /></div>}
-                                </div>
-                            </div>
-                        </Tip>
-
-                        {/* Settings with HD badge */}
-                        <div className="relative flex items-center justify-center flex-shrink-0">
-=======
->>>>>>> Stashed changes
-                            <Tip label="Settings">
-                                <button
-                                    onClick={() => setSettingsMenuState(prev => prev === 'closed' ? 'main' : 'closed')}
-                                    className={`w-5 h-5 transition-all active:scale-95 ${settingsMenuState !== 'closed' ? 'text-white rotate-45 scale-110' : 'text-white hover:opacity-80'}`}
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                 >
                                     <SettingsIcon />
                                 </button>
                             </Tip>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                            <AnimatePresence>
-                                {showQualityMenu && (
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
                             {/* HD Badge */}
                             {(quality === '1080p' || quality === '720p' || quality === 'Auto') && (
@@ -964,26 +679,47 @@ const VideoPlayer = ({ src, poster, onError,
 
                             <AnimatePresence mode="wait">
                                 {settingsMenuState !== 'closed' && (
->>>>>>> Stashed changes
                                     <motion.div
+                                        key={settingsMenuState}
                                         initial={{ opacity: 0, y: 8, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-2 min-w-[120px]"
+                                        className="absolute bottom-full right-0 mb-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 py-1 min-w-[200px]"
                                     >
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">Quality</div>
-                                        {QUALITIES.map(q => (
-                                            <button
-                                                key={q}
-                                                onClick={() => { setQuality(q); setShowQualityMenu(false); }}
-                                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${quality === q ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                <span>{q}</span>
-                                                {quality === q && <span className="text-[10px]">&bull;</span>}
-                                            </button>
-                                        ))}
-=======
+                                        {/* ─── Main View ─── */}
+                                        {settingsMenuState === 'main' && (
+                                            <>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('speed')}
+                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M10 8v8l6-4-6-4zm11.54-1.38C20.8 4.44 18.55 3 16 3H8C5.45 3 3.2 4.44 2.46 6.62L1 12l1.46 5.38C3.2 19.56 5.45 21 8 21h8c2.55 0 4.8-1.44 5.54-3.62L23 12l-1.46-5.38zM21 12l-1.26 4.63C19.22 18.38 17.73 19 16 19H8c-1.73 0-3.22-.62-3.74-2.37L3 12l1.26-4.63C4.78 5.62 6.27 5 8 5h8c1.73 0 3.22.62 3.74 2.37L21 12z" /></svg>
+                                                        Playback speed
+                                                    </span>
+                                                    <span className="text-white/50 text-[11px]">
+                                                        {playbackRate === 1 ? 'Normal' : `${playbackRate}×`}
+                                                    </span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setSettingsMenuState('quality')}
+                                                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 opacity-70"><path d="M15 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V9l-6-6zM5 19V5h9v5h5v9H5zm4-4h6v2H9v-2zm0-4h6v2H9v-2z" /></svg>
+                                                        Quality
+                                                    </span>
+                                                    <span className="text-white/50 text-[11px] flex items-center gap-1">
+                                                        {isTranscoding && (
+                                                            <svg className="w-3 h-3 animate-spin text-yellow-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                                        )}
+                                                        {quality}
+                                                    </span>
+                                                </button>
+                                            </>
+                                        )}
+
                                         {/* ─── Speed Submenu ─── */}
                                         {settingsMenuState === 'speed' && (
                                             <>
@@ -1043,7 +779,6 @@ const VideoPlayer = ({ src, poster, onError,
                                                 ))}
                                             </>
                                         )}
->>>>>>> Stashed changes
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -1072,7 +807,7 @@ const VideoPlayer = ({ src, poster, onError,
                         </Tip>
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };

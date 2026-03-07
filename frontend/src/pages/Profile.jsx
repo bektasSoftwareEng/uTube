@@ -120,8 +120,8 @@ const Profile = () => {
                                     <p className="font-medium text-lg truncate">{user.email || 'No email provided'}</p>
                                 </div>
                                 <div className="bg-white/5 rounded-2xl p-4 border border-white/5 hover:border-white/10 transition-colors">
-                                    <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-1">User ID</p>
-                                    <p className="font-mono text-sm opacity-60 truncate">{user.id}</p>
+                                    <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-1">Username</p>
+                                    <p className="font-medium text-lg truncate">@{user.username}</p>
                                 </div>
                             </div>
 
@@ -136,28 +136,8 @@ const Profile = () => {
                                     Edit Profile
                                 </button>
                                 <button
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                                    onClick={() => navigate(`/channel/@${user.username}`)}
-                                    className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
-=======
                                     onClick={() => navigate('/my-channel')}
                                     className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
->>>>>>> Stashed changes
-=======
-                                    onClick={() => navigate('/my-channel')}
-                                    className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
->>>>>>> Stashed changes
-=======
-                                    onClick={() => navigate('/my-channel')}
-                                    className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
->>>>>>> Stashed changes
-=======
-                                    onClick={() => navigate('/my-channel')}
-                                    className="px-6 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-bold transition-all border border-primary/20 flex items-center justify-center gap-2 group"
->>>>>>> Stashed changes
                                     style={{ color: 'var(--primary)' }}
                                 >
                                     <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
