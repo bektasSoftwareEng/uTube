@@ -67,7 +67,7 @@ def get_channel(user_id: int, db: Session = Depends(get_db)):
             "video_url": get_video_url(v.video_filename, is_temp=False),
             "thumbnail_url": get_thumbnail_url(v.thumbnail_filename),
             "view_count": v.view_count,
-            "upload_date": v.upload_date.isoformat(),
+            "upload_date": v.upload_date.isoformat() + "Z",
             "duration": v.duration,
             "category": v.category,
             "tags": parse_tags(v.tags),

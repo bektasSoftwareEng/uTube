@@ -638,7 +638,7 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         is_verified=user.is_verified,
         stream_title=user.stream_title,
         stream_category=user.stream_category,
-        created_at=user.created_at.isoformat(),
+        created_at=user.created_at.isoformat() + "Z",
         subscriber_count=subscriber_count,
         video_count=video_count,
         total_views=total_views,
@@ -1022,7 +1022,7 @@ def get_my_videos(
             title=video.title,
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags),
@@ -1134,7 +1134,7 @@ def get_user_subscriptions(
             username=u.username,
             email=u.email,
             profile_image=u.profile_image,
-            created_at=u.created_at.isoformat()
+            created_at=u.created_at.isoformat() + "Z"
         ) for u in followed_users
     ]
 

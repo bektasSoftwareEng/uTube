@@ -18,7 +18,9 @@ const fmtDuration = (s) => {
 // ── Time ago helper ──
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    const diff = Date.now() - new Date(dateStr).getTime();
+    // Ensure the date string is treated as UTC
+    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const diff = Date.now() - new Date(utcStr).getTime();
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m}m ago`;
@@ -26,7 +28,7 @@ const timeAgo = (dateStr) => {
     if (h < 24) return `${h}h ago`;
     const d = Math.floor(h / 24);
     if (d < 7) return `${d}d ago`;
-    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return new Date(utcStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
 // ── Section Header — matches the navbar dropdown label style  ──

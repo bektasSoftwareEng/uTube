@@ -11,7 +11,9 @@ const fac = new FastAverageColor();
 // ── Time-ago helper ───────────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
+    // Ensure the date string is treated as UTC
+    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const diff = Math.max(0, Date.now() - new Date(utcStr).getTime());
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m} minutes ago`;
