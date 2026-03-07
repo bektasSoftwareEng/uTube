@@ -15,14 +15,20 @@ import Dashboard from './pages/Dashboard';
 import BlockedVideos from './pages/BlockedVideos';
 import MyChannel from './pages/MyChannel';
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { UTUBE_TOKEN } from './utils/authConstants'
 =======
+=======
+>>>>>>> Stashed changes
 import Channel from './pages/Channel';
 import AdminPanel from './pages/AdminPanel';
 import Notifications from './pages/Notifications';
 import Subscriptions from './pages/Subscriptions';
 import LikedVideos from './pages/LikedVideos';
 import { UTUBE_TOKEN, UTUBE_USER } from './utils/authConstants'
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 
@@ -119,6 +125,9 @@ const AppLayout = () => {
                     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                     <Route path="/subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
                     <Route path="/liked" element={<ProtectedRoute><LikedVideos /></ProtectedRoute>} />
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                 </Routes>
             </main>

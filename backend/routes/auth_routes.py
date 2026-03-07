@@ -118,6 +118,9 @@ class UserResponse(BaseModel):
     is_admin: bool = False
     upload_banned: bool = False
     upload_ban_reason: Optional[str] = None
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
@@ -499,6 +502,9 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         is_admin=bool(user.is_admin),
         upload_banned=bool(user.upload_banned),
         upload_ban_reason=user.upload_ban_reason,
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
         stream_title=user.stream_title,
         stream_category=user.stream_category,

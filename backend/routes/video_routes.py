@@ -217,6 +217,9 @@ async def upload_video(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ban_reason
         )
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     
     try:

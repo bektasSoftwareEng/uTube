@@ -400,9 +400,12 @@ const Navbar = () => {
                                             </Link>
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                                             <Link
                                                 to={`/channel/@${user?.username}`}
 =======
+=======
+>>>>>>> Stashed changes
                                             {/* Admin Panel link — visible only to admins */}
                                             {user?.is_admin && (
                                                 <Link
@@ -420,11 +423,15 @@ const Navbar = () => {
                                             {/* Notifications link */}
                                             <Link
                                                 to="/notifications"
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-white/70 hover:text-white font-bold text-sm transition-colors"
                                                 onClick={() => setIsMenuOpen(false)}
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                                 </svg>
@@ -438,12 +445,17 @@ const Navbar = () => {
                                             >
                                                 My Profile
 =======
+=======
+>>>>>>> Stashed changes
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                                                 </svg>
                                                 Notice
                                                 {unreadWarnings > 0 && (
                                                     <span className="ml-auto bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadWarnings}</span>
                                                 )}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                                             </Link>
 

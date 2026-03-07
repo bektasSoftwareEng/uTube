@@ -286,7 +286,10 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                                     alt="Banner Preview"
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity"
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
                                     style={{ objectPosition: `center ${bannerPosition}%` }}
                                     onError={(e) => { e.target.style.display = 'none'; }}
 >>>>>>> Stashed changes
@@ -319,7 +322,10 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                         </div>
                         <p className="text-[10px] text-white/40 mt-1.5 ml-1">JPEG, PNG or WEBP. At least 1024x288px recommended.</p>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 
                         {/* Banner Position Slider */}
                         {(previewUrl || currentBannerUrl) && (
@@ -653,6 +659,7 @@ const MyChannel = () => {
                 <div className="mb-12">
                     {/* Banner Image or Fallback Gradient */}
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     <div className="h-40 md:h-64 bg-gradient-to-r from-primary/30 via-purple-600/20 to-primary/10 relative">
                         {user.channel_banner_url ? (
                             <img
@@ -665,6 +672,8 @@ const MyChannel = () => {
                         )}
                     </div>
 =======
+=======
+>>>>>>> Stashed changes
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -673,6 +682,9 @@ const MyChannel = () => {
                     >
                         {/* Spinning LED Border Effect */}
                         <div className="absolute inset-[-100%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_50%,#ff0000_100%)]" />
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
                         <div className="absolute inset-[2px] rounded-[calc(1.5rem-2px)] overflow-hidden bg-gradient-to-r from-primary/30 via-red-600/20 to-primary/10">

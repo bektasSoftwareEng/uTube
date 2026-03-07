@@ -179,6 +179,9 @@ def run_schema_migrations():
                 ("is_admin", "BOOLEAN DEFAULT False NOT NULL"),
                 ("upload_banned", "BOOLEAN DEFAULT False NOT NULL"),
                 ("upload_ban_reason", "TEXT"),
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
             ]
             

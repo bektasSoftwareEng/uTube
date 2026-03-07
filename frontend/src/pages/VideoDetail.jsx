@@ -541,6 +541,9 @@ const VideoDetail = () => {
                             title={video.title}
                             channelName={video.author?.username}
                             onAutoplayEnd={handleAutoplayEnd}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                         />
                     </div>
