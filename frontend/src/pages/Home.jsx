@@ -154,10 +154,17 @@ const Home = () => {
     ), [trendingVideos, blockedChannels, blockedVideos]);
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
 <<<<<<< Updated upstream
     const filteredVideos = selectedCategory === "All"
 =======
+    const visibleChannels = useMemo(() => channels.filter(c => !blockedChannels.has(c.id)), [channels, blockedChannels]);
+
+    const filteredVideos = useMemo(() => selectedCategory === "All"
+>>>>>>> Stashed changes
+=======
+
     const visibleChannels = useMemo(() => channels.filter(c => !blockedChannels.has(c.id)), [channels, blockedChannels]);
 
     const filteredVideos = useMemo(() => selectedCategory === "All"

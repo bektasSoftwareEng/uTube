@@ -152,15 +152,6 @@ def run_schema_migrations():
             existing_columns = {row[1] for row in cursor.fetchall()}
             
             user_columns = [
-<<<<<<< Updated upstream
-                ("stream_key", "VARCHAR(100)"),
-                ("stream_title", "VARCHAR(100)"),
-                ("stream_category", "VARCHAR(50) DEFAULT 'Gaming'"),
-                ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
-                ("verification_code", "VARCHAR(6)"),
-                ("verification_expires_at", "DATETIME"),
-                ("pending_email", "VARCHAR(100)")
-=======
                 ("is_verified", "BOOLEAN DEFAULT False NOT NULL"),
                 ("verification_code", "VARCHAR(6)"),
                 ("verification_expires_at", "DATETIME"),
@@ -179,13 +170,6 @@ def run_schema_migrations():
                 ("is_admin", "BOOLEAN DEFAULT False NOT NULL"),
                 ("upload_banned", "BOOLEAN DEFAULT False NOT NULL"),
                 ("upload_ban_reason", "TEXT"),
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             ]
             
             for col_name, col_def in user_columns:

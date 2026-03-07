@@ -212,6 +212,29 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
     const [previewUrl, setPreviewUrl] = useState('');
     const [bannerPosition, setBannerPosition] = useState(user?.banner_position ?? 50);
     const [saving, setSaving] = useState(false);
+    const [confirmRemove, setConfirmRemove] = useState(false);
+    const [removing, setRemoving] = useState(false);
+
+    const handleRemoveBanner = async () => {
+        setRemoving(true);
+        try {
+            const formData = new FormData();
+            formData.append('description', description.trim());
+            formData.append('remove_banner', 'true');
+            const res = await ApiClient.put('/auth/me/channel', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+            window.dispatchEvent(new Event('authChange'));
+            toast.success('Banner removed!');
+            onSaved(res.data);
+            setConfirmRemove(false);
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove banner');
+        } finally {
+            setRemoving(false);
+        }
+    };
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -285,17 +308,8 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                                     src={DOMPurify.sanitize(previewUrl || currentBannerUrl)}
                                     alt="Banner Preview"
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity"
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                     style={{ objectPosition: `center ${bannerPosition}%` }}
                                     onError={(e) => { e.target.style.display = 'none'; }}
->>>>>>> Stashed changes
                                 />
                             ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 group-hover:text-white/70 transition-colors">
@@ -324,37 +338,6 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                             )}
                         </div>
                         <p className="text-[10px] text-white/40 mt-1.5 ml-1">JPEG, PNG or WEBP. At least 1024x288px recommended.</p>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-
-                        {/* Banner Position Slider */}
-                        {(previewUrl || currentBannerUrl) && (
-                            <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Focal Point</label>
-                                    <span className="text-[10px] font-mono text-primary font-bold">{bannerPosition}%</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    value={bannerPosition}
-                                    onChange={(e) => setBannerPosition(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(229,9,20,0.5)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/30 [&::-webkit-slider-thumb]:cursor-pointer"
-                                />
-                                <div className="flex justify-between text-[9px] text-white/30 mt-1">
-                                    <span>Top</span>
-                                    <span>Center</span>
-                                    <span>Bottom</span>
-                                </div>
-                            </div>
-                        )}
                         {/* Remove Banner Button */}
                         {user?.channel_banner_url && !previewUrl && (
                             <div className="mt-2">
@@ -391,8 +374,23 @@ const EditChannelModal = ({ user, onClose, onSaved }) => {
                                 )}
                             </div>
                         )}
->>>>>>> Stashed changes
                     </div>
+
+                    {/* Banner Position Slider */}
+                    {(previewUrl || currentBannerUrl) && (
+                        <div>
+                            <label className="text-xs font-bold text-white/50 uppercase tracking-widest mb-1.5 block">Banner Vertical Position</label>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={bannerPosition}
+                                onChange={(e) => setBannerPosition(Number(e.target.value))}
+                                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+                            />
+                            <p className="text-[10px] text-white/40 mt-1.5 ml-1">Adjusts how the banner image is vertically aligned.</p>
+                        </div>
+                    )}
 
                     {/* Description Textarea */}
                     <div>
@@ -663,26 +661,7 @@ const MyChannel = () => {
 
                 {/* ─── Channel Header ─────────────────────────────────────── */}
                 <div className="mb-12">
-                    {/* Banner Image or Fallback Gradient */}
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                    <div className="h-40 md:h-64 bg-gradient-to-r from-primary/30 via-purple-600/20 to-primary/10 relative">
-                        {user.channel_banner_url ? (
-                            <img
-                                src={DOMPurify.sanitize(getValidUrl(`/uploads/banners/${user.channel_banner_url}`))}
-                                alt={`${user.username}'s banner`}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZykiLz48L3N2Zz4=')] opacity-50" />
-                        )}
-                    </div>
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+                    {/* Animated LED Border Banner */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -691,13 +670,6 @@ const MyChannel = () => {
                     >
                         {/* Spinning LED Border Effect */}
                         <div className="absolute inset-[-100%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_50%,#ff0000_100%)]" />
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
                         <div className="absolute inset-[2px] rounded-[calc(1.5rem-2px)] overflow-hidden bg-gradient-to-r from-primary/30 via-red-600/20 to-primary/10">
                             {user.channel_banner_url ? (

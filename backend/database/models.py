@@ -52,6 +52,9 @@ class User(Base):
     banner_position = Column(Integer, nullable=True, default=50)  # 0-100 vertical focal point %
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -71,6 +74,11 @@ class User(Base):
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
+
+    # Admin Fields
+    is_admin = Column(Boolean, default=False, nullable=False)
+    upload_banned = Column(Boolean, default=False, nullable=False)
+    upload_ban_reason = Column(Text, nullable=True)
 
     # Admin Fields
     is_admin = Column(Boolean, default=False, nullable=False)
@@ -586,6 +594,9 @@ class AdminWarning(Base):
         return f"<AdminWarning(id={self.id}, target_user={self.target_user_id}, title='{self.title[:30]}')>"
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

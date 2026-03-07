@@ -109,8 +109,6 @@ class UserResponse(BaseModel):
     username: str
     email: str
     profile_image: Optional[str] = None
-<<<<<<< Updated upstream
-=======
     channel_description: Optional[str] = None
     channel_banner_url: Optional[str] = None
     banner_position: Optional[int] = 50
@@ -118,17 +116,8 @@ class UserResponse(BaseModel):
     is_admin: bool = False
     upload_banned: bool = False
     upload_ban_reason: Optional[str] = None
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     stream_title: Optional[str] = None
     stream_category: Optional[str] = None
-    channel_description: Optional[str] = None
-    channel_banner_url: Optional[str] = None
     created_at: str
     subscriber_count: int = 0
     video_count: int = 0
@@ -496,8 +485,6 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         username=user.username,
         email=user.email,
         profile_image=user.profile_image,
-<<<<<<< Updated upstream
-=======
         channel_description=user.channel_description,
         channel_banner_url=user.channel_banner_url,
         banner_position=user.banner_position if user.banner_position is not None else 50,
@@ -505,17 +492,8 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         is_admin=bool(user.is_admin),
         upload_banned=bool(user.upload_banned),
         upload_ban_reason=user.upload_ban_reason,
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         stream_title=user.stream_title,
         stream_category=user.stream_category,
-        channel_description=user.channel_description,
-        channel_banner_url=user.channel_banner_url,
         created_at=user.created_at.isoformat(),
         subscriber_count=subscriber_count,
         video_count=video_count,
