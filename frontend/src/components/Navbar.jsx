@@ -152,7 +152,9 @@ const Navbar = () => {
     // ── Time ago helper ──
     const timeAgo = (dateStr) => {
         const now = new Date();
-        const date = new Date(dateStr);
+        // Ensure the date string is treated as UTC
+        const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+        const date = new Date(utcStr);
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
         if (diffMins < 1) return 'Just now';

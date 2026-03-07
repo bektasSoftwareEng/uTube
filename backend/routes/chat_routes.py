@@ -387,7 +387,7 @@ def create_clip(
     db.add(clip)
     db.commit()
     
-    return {"success": True, "clip_id": clip.id, "timestamp": clip.clip_timestamp.isoformat()}
+    return {"success": True, "clip_id": clip.id, "timestamp": clip.clip_timestamp.isoformat() + "Z"}
 
 
 # ============================================================================
@@ -407,4 +407,4 @@ def create_marker(
     db.add(marker)
     db.commit()
 
-    return {"success": True, "marker_id": marker.id, "timestamp": marker.marker_timestamp.isoformat()}
+    return {"success": True, "marker_id": marker.id, "timestamp": marker.marker_timestamp.isoformat() + "Z"}
