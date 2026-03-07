@@ -13,7 +13,9 @@ import { UTUBE_USER } from '../utils/authConstants';
 
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    const diff = Math.max(0, Date.now() - new Date(dateStr).getTime());
+    // Ensure the date string is treated as UTC
+    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const diff = Math.max(0, Date.now() - new Date(utcStr).getTime());
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m} minutes ago`;
@@ -79,6 +81,15 @@ const VideoDetail = () => {
     const [replyText, setReplyText] = useState('');
     const [expandedReplies, setExpandedReplies] = useState({});
     const [replySubmitting, setReplySubmitting] = useState(false);
+
+    // ── Resolution State ──
+    const [availableResolutions, setAvailableResolutions] = useState(null);
+    const [transcodeStatus, setTranscodeStatus] = useState('pending');
+
+    // ── Description Expand State ──
+    const [isExpanded, setIsExpanded] = useState(false);
+    // ── Channel Subscriber Count (author) ──
+    const [authorSubCount, setAuthorSubCount] = useState(null);
 
     // Get current user from localStorage (called once, used throughout)
     const getCurrentUser = () => {
@@ -186,6 +197,23 @@ const VideoDetail = () => {
     }, [id]);
 
     // ══════════════════════════════════════════════════
+    // Fetch Author Stats (subscriber_count)
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        const fetchAuthorStats = async () => {
+            if (!video?.author?.username) return;
+            try {
+                const res = await ApiClient.get(`/auth/profile/${encodeURIComponent(video.author.username)}`);
+                setAuthorSubCount(res.data.subscriber_count ?? 0);
+            } catch (err) {
+                console.warn('Could not fetch author stats:', err);
+            }
+        };
+
+        fetchAuthorStats();
+    }, [video]);
+
+    // ══════════════════════════════════════════════════
     // Fetch Like/Dislike Status (requires auth)
     // ══════════════════════════════════════════════════
     useEffect(() => {
@@ -278,6 +306,73 @@ const VideoDetail = () => {
     }, []);
 
     // ══════════════════════════════════════════════════
+    // Fetch Resolutions (with polling while transcoding)
+    // ══════════════════════════════════════════════════
+    useEffect(() => {
+        if (!video) return;
+        let resPollInterval;
+
+        const fetchResolutions = async () => {
+            try {
+                const res = await ApiClient.get(`/videos/${id}/resolutions`);
+                setAvailableResolutions(res.data.resolutions || null);
+                setTranscodeStatus(res.data.status);
+
+                // Stop polling once transcoding is done
+                if (res.data.status !== 'processing' && resPollInterval) {
+                    clearInterval(resPollInterval);
+                    resPollInterval = null;
+                }
+            } catch (err) {
+                console.warn('Could not fetch resolutions:', err);
+            }
+        };
+
+        fetchResolutions();
+        // Poll every 10s while transcoding
+        resPollInterval = setInterval(fetchResolutions, 10000);
+
+        return () => {
+            if (resPollInterval) clearInterval(resPollInterval);
+        };
+    }, [video, id]);
+
+    // ══════════════════════════════════════════════════
+    // Text Parser (URLs & Hashtags)
+    // ══════════════════════════════════════════════════
+    const formatText = (text) => {
+        if (!text) return null;
+        const regex = /(https?:\/\/[^\s]+|#[^\s]+)/g;
+        const parts = text.split(regex);
+        return parts.map((part, i) => {
+            if (part.match(/^https?:\/\//)) {
+                return (
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-500 hover:text-red-400 underline decoration-red-500/30 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {part}
+                    </a>
+                );
+            } else if (part.match(/^#/)) {
+                return (
+                    <span
+                        key={i}
+                        className="text-red-500 font-medium cursor-pointer hover:text-red-400 transition-colors"
+                    >
+                        {part}
+                    </span>
+                );
+            }
+            return part;
+        });
+    };
+
+    // ══════════════════════════════════════════════════
     // Handlers
     // ══════════════════════════════════════════════════
 
@@ -300,10 +395,16 @@ const VideoDetail = () => {
             if (isSubscribed) {
                 await ApiClient.delete(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(false);
+                setAuthorSubCount(prev =>
+                    prev == null ? prev : Math.max(0, prev - 1)
+                );
                 toast.success('Abonelikten çıkıldı');
             } else {
                 await ApiClient.post(`/auth/subscribe/${video.author.id}`);
                 setIsSubscribed(true);
+                setAuthorSubCount(prev =>
+                    prev == null ? prev : prev + 1
+                );
                 toast.success('Abone olundu!');
             }
         } catch (error) {
@@ -525,6 +626,10 @@ const VideoDetail = () => {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
+                            availableResolutions={availableResolutions}
+                            transcodeStatus={transcodeStatus}
+                            title={video.title}
+                            channelName={video.author?.username}
                         />
                     </div>
 
@@ -532,20 +637,27 @@ const VideoDetail = () => {
                     <h1 className="text-2xl md:text-3xl font-bold mb-2 tracking-tight">{video.title}</h1>
                     <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-white/10 mb-6 gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface">
+                            <Link
+                                to={`/channel/${video.author?.id}`}
+                                className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-surface shrink-0 hover:ring-2 hover:ring-white/30 transition-all"
+                            >
                                 <img
                                     src={getAvatarUrl(video.author?.profile_image, video.author?.username)}
                                     alt={video.author?.username}
                                     className="w-full h-full object-cover"
                                     onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${video.author?.username || 'User'}&background=random&color=fff`; }}
                                 />
+                            </Link>
 
-                            </div>
-
-                            <div>
+                            <Link
+                                to={`/channel/${video.author?.id}`}
+                                className="hover:underline underline-offset-2"
+                            >
                                 <p className="font-bold">{video.author?.username}</p>
-                                <p className="text-white/40 text-xs">{video.author?.video_count || 0} subscribers</p>
-                            </div>
+                                <p className="text-white/40 text-xs">
+                                    {(authorSubCount ?? 0).toLocaleString()} subscribers
+                                </p>
+                            </Link>
                             {isOwnChannel ? (
                                 <Link
                                     to="/edit-profile"
@@ -602,6 +714,35 @@ const VideoDetail = () => {
                             <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-2 rounded-full transition-colors glass font-bold text-sm">
                                 Share
                             </button>
+                        </div>
+                    </div>
+
+                    {/* ══════════════════════════════════════════════════ */}
+                    {/* Expandable Description Box                       */}
+                    {/* ══════════════════════════════════════════════════ */}
+                    <div
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 cursor-pointer mt-4 flex flex-col"
+                    >
+                        <p className="font-bold text-sm text-white/90 mb-2">
+                            {video.view_count || 0} views
+                            {video.upload_date && (
+                                <>
+                                    <span className="mx-1">•</span>
+                                    {new Date(video.upload_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </>
+                            )}
+                        </p>
+
+                        <div className={`text-sm text-white/80 whitespace-pre-wrap ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                            {formatText(video.description)}
+                        </div>
+
+                        {/* Centered Indicator inside the box */}
+                        <div className="mt-2 pt-1 flex justify-center w-full">
+                            <span className="text-xs font-bold text-white/50 uppercase tracking-wider hover:text-white transition-colors">
+                                {isExpanded ? "Show less ▲" : "Show more ▼"}
+                            </span>
                         </div>
                     </div>
 

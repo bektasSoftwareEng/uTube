@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
-from backend.database.models import Video
+from backend.database.models import Video, User
 from backend.core.config import (
     VIDEOS_DIR,
     THUMBNAILS_DIR,
@@ -61,6 +61,8 @@ async def cleanup_loop():
         try:
             await asyncio.sleep(60)
             await cleanup_temp_and_previews()
+            # Also clean up stale unverified users
+            await asyncio.to_thread(cleanup_unverified_users)
         except asyncio.CancelledError:
             logger.info("[CLEANUP] Background task cancelled.")
             break
@@ -224,7 +226,7 @@ def purge_orphaned_files():
         for v in all_videos:
             if v.video_filename: valid_files.add(v.video_filename)
             if v.thumbnail_filename: valid_files.add(v.thumbnail_filename)
-        valid_files.add("default_thumbnail.png")
+        # valid_files.add("default_thumbnail.png") # Purged in Zero-Default policy
 
         # Scan directories
         for directory in [VIDEOS_DIR, THUMBNAILS_DIR]:
@@ -274,6 +276,34 @@ def startup_cleanup():
     cleanup_stuck_uploads()
     purge_orphaned_files()
     wipe_temp_folders()
+    cleanup_unverified_users()
+
+
+def cleanup_unverified_users():
+    """
+    Delete users who registered but never verified their email.
+    Removes records where is_verified=False and created_at is older than 24 hours.
+    This prevents 'Email already exists' errors for abandoned registrations.
+    """
+    db: Session = SessionLocal()
+    try:
+        threshold = datetime.utcnow() - timedelta(hours=24)
+        stale_users = db.query(User).filter(
+            User.is_verified == False,
+            User.created_at < threshold
+        ).all()
+
+        if stale_users:
+            for user in stale_users:
+                logger.info(f"[CLEANUP] Deleting unverified user: {user.email} (registered {user.created_at})")
+                db.delete(user)
+            db.commit()
+            logger.info(f"[CLEANUP] Removed {len(stale_users)} stale unverified user(s).")
+    except Exception as e:
+        logger.error(f"[CLEANUP] Unverified user cleanup error: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

@@ -18,13 +18,13 @@ def get_sentence_transformer():
                 try:
                     logger.info("Loading sentence-transformers 'all-MiniLM-L6-v2' local model...")
                     from sentence_transformers import SentenceTransformer
-                    # We use device='cpu' to ensure universal compatibility, though users with GPUs 
-                    # will automatically benefit if PyTorch is configured for CUDA.
                     _model = SentenceTransformer('all-MiniLM-L6-v2')
                     logger.info("Successfully loaded sentence-transformers model!")
-                except Exception as e:
-                    logger.error(f"Failed to load sentence-transformers model: {e}")
-                    raise e
+                except (ImportError, Exception) as e:
+                    logger.info(f"Embedding service not available: {e}. Lexical search fallback is active.")
+                    _model = "UNAVAILABLE"
+    if _model == "UNAVAILABLE":
+        return None
     return _model
 
 def generate_embedding(text: str) -> list[float]:
@@ -33,10 +33,12 @@ def generate_embedding(text: str) -> list[float]:
     Returns the vector as a list of floats so it can be stored as JSON.
     """
     if not text or not text.strip():
-        # all-MiniLM-L6-v2 produces a 384-dimensional vector. Return zeros if no text.
         return [0.0] * 384
 
     model = get_sentence_transformer()
+    if not model:
+        return None # Gracious failure
+    
     # The encode function returns a numpy array, we convert it to a python list
     embedding_array = model.encode(text, convert_to_numpy=True)
     return embedding_array.tolist()

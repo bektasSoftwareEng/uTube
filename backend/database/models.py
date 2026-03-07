@@ -38,7 +38,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # User Credentials
-    username = Column(String(50), unique=True, nullable=False, index=True)
+    username = Column(String(25), unique=True, nullable=False, index=True)
     email = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     
@@ -48,17 +48,22 @@ class User(Base):
     channel_banner_url = Column(String(255), nullable=True)
     banner_position = Column(Integer, nullable=True, default=50)  # 0-100 vertical focal point %
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
+    
+    # Live Streaming Metadata (new_update)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
     is_live = Column(Boolean, default=False, nullable=False, index=True)
     viewer_count = Column(Integer, default=0, nullable=False)
     stream_title = Column(String(100), nullable=True)
     stream_category = Column(String(50), nullable=True, default="Gaming")
+    stream_thumbnail = Column(String(255), nullable=True, default=None)
+    studio_bg_url = Column(String(500), nullable=True, default=None)
     
     # Email Verification
     is_verified = Column(Boolean, default=False, nullable=False)
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
+    
 
     # Admin Fields
     is_admin = Column(Boolean, default=False, nullable=False)
@@ -107,8 +112,46 @@ class User(Base):
         lazy="dynamic"
     )
     
+    backgrounds = relationship(
+        "UserBackground",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="dynamic"
+    )
+    
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"
+
+
+class UserBackground(Base):
+    """
+    UserBackground model for storing custom Live Studio backgrounds.
+    
+    Attributes:
+        id: Primary key
+        user_id: Foreign key to User
+        file_path: Relative path to the uploaded video file
+        thumbnail_path: Relative path to the generated thumbnail image (optional)
+        is_default: Boolean indicating if it's the active background
+        created_at: Upload timestamp
+        
+    Relationships:
+        user: The user who uploaded this background
+    """
+    __tablename__ = "user_backgrounds"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=True)
+    file_path = Column(String(500), nullable=False)
+    thumbnail_path = Column(String(500), nullable=True)
+    is_default = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    user = relationship("User", back_populates="backgrounds")
+    
+    def __repr__(self):
+        return f"<UserBackground(id={self.id}, user_id={self.user_id}, path='{self.file_path}')>"
 
 
 class Video(Base):
@@ -150,17 +193,20 @@ class Video(Base):
     
     # File Storage
     video_filename = Column(String(255), nullable=False)
-    thumbnail_filename = Column(String(255), nullable=True, default="default_thumbnail.png")
+    thumbnail_filename = Column(String(255), nullable=True)
     
     # Analytics
     view_count = Column(Integer, default=0, nullable=False, index=True)  # Indexed for trending
     duration = Column(Integer, nullable=True)  # Duration in seconds
     
-    # Status (processing, published, failed)
-    status = Column(String(20), default="processing", nullable=False, index=True)
+    # Status (draft, processing, published, failed)
+    status = Column(String(20), default="draft", nullable=False, index=True)
 
     # Semantic Search
     embedding = Column(JSON, nullable=True)  # Store the dense vector as a JSON array of floats
+
+    # Multi-Resolution Transcoding
+    resolutions = Column(JSON, nullable=True, default=dict)  # {"360p": "file_360p.mp4", "720p": "file_720p.mp4", ...}
 
     # Timestamps
     upload_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

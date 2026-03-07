@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import logging
+from fastapi import HTTPException
 
 from backend.core.config import DATABASE_URL
 
@@ -85,6 +86,8 @@ def get_db() -> Generator[Session, None, None]:
     try:
         logger.debug("Database session created")
         yield db
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Database session error: {e}")
         db.rollback()
@@ -122,6 +125,7 @@ def run_schema_migrations():
                 ("tags",         "TEXT"),           # JSON stored as TEXT in SQLite
                 ("visibility",   "TEXT DEFAULT 'public'"),
                 ("scheduled_at", "TEXT"),
+                ("resolutions",  "TEXT DEFAULT '{}'"),  # JSON map of available resolutions
             ]
             
             for col_name, col_def in video_columns:
@@ -179,6 +183,19 @@ def run_schema_migrations():
                         logger.info(f"  ✅ Added missing column: users.{col_name}")
                     except Exception as e:
                         logger.warning(f"  ⚠️ Could not add users.{col_name}: {e}")
+
+        # --- Migration 4: UserBackgrounds Table (Name field) ---
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_backgrounds'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(user_backgrounds)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            if "name" not in existing_columns:
+                try:
+                    cursor.execute("ALTER TABLE user_backgrounds ADD COLUMN name VARCHAR(100)")
+                    logger.info("  ✅ Added missing column: user_backgrounds.name")
+                except Exception as e:
+                    logger.warning(f"  ⚠️ Could not add user_backgrounds.name: {e}")
 
         conn.commit()
         conn.close()

@@ -1,4 +1,5 @@
 ssh root@37.148.214.28
+Tx2#Ri5!Do9!Wk4! 
 cd /var/www/uTube
 
 find /var/www/uTube/backend -name "*.db" -delete --> Veritabanını silme
@@ -27,3 +28,11 @@ chmod -R 755 /var/www/uTube/storage --> nginx'e klasör okuma izni verme
 nginx -t		 --
 systemctl restart nginx  -- bu iki komut nginx'i yeniden başlatır.
 
+🛠️ Sunucu İçin Tek Bir "Ufak Dokunuş" Gerekecek
+Sohbeti (WebSocket) sunucuya taşıdığımızda Nginx'e sadece şu iki satırı eklememiz gerekecek (WebSockets normal HTTP'den biraz daha farklıdır, "Upgrade" ister):
+
+Nginx
+# Nginx'e "Yol ver, bu bir WebSocket paketidir" diyoruz
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+Bunu yaptığımız an, uTube senin sunucunda gerçek zamanlı bir dev haline gelecek. Yani sen yayını açtığında, dünyanın öbür ucundaki biri gelip senin yayınına chat'ten "ZBABOOO" yazabilecek! 🌍💬

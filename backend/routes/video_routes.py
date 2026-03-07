@@ -13,13 +13,18 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Any, Union
 from datetime import datetime
 import os
 import shutil
 import json
+import logging
+import threading
 from pathlib import Path
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 from backend.database import get_db
 from backend.database.models import User, Video
@@ -37,6 +42,8 @@ from backend.core.video_processor import (
 from backend.services.embedding_service import generate_embedding, compute_cosine_similarity
 from backend.core.config import VIDEOS_DIR, THUMBNAILS_DIR, PREVIEWS_DIR, TEMP_UPLOADS_DIR
 from backend.core.security import secure_resolve
+from backend.services.transcoding_service import transcode_video
+from backend.database.connection import SessionLocal
 
 # Create router
 router = APIRouter(prefix="/videos", tags=["Videos"])
@@ -50,20 +57,19 @@ class AuthorResponse(BaseModel):
     """Response model for user/author information."""
     id: int
     username: str
-    profile_image: Optional[str] = "default_avatar.png"
+    profile_image: Optional[str] = None
     video_count: Optional[int] = 0
 
     class Config:
         from_attributes = True
-
 
 class VideoUploadResponse(BaseModel):
     """Response model for video upload."""
     id: int
     title: str
     description: Optional[str] = None
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     author: AuthorResponse
@@ -77,8 +83,8 @@ class VideoListResponse(BaseModel):
     """Response model for video list."""
     id: int
     title: str
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     author: AuthorResponse
@@ -88,9 +94,26 @@ class VideoListResponse(BaseModel):
     like_count: int = 0
     status: str = "published"
     visibility: str = "public"
+    resolutions: Optional[dict] = None
 
     class Config:
         from_attributes = True
+
+
+class ChannelSearchResponse(BaseModel):
+    id: int
+    username: str
+    profile_image: Optional[str] = None
+    subscriber_count: int = 0
+    video_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class CombinedSearchResponse(BaseModel):
+    channels: List[ChannelSearchResponse]
+    videos: List[VideoListResponse]
 
 
 class VideoResponse(BaseModel):
@@ -102,13 +125,15 @@ class VideoResponse(BaseModel):
     tags: List[str] = []  # Phase 5: Recommendation-ready JSON tags
     visibility: str = "public"  # Phase 5: Access control
     scheduled_at: Optional[str] = None  # Phase 5: ISO 8601 datetime
-    video_url: str
-    thumbnail_url: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     view_count: int
     upload_date: str
     duration: Optional[int] = None
     like_count: int = 0
     author: AuthorResponse
+    resolutions: Optional[dict] = None
+    status: str = "published"
     
     class Config:
         from_attributes = True
@@ -120,21 +145,22 @@ class VideoResponse(BaseModel):
 
 def get_video_url(filename: str, is_temp: bool = False) -> str:
     """Generate full URL for video file."""
+    if not filename: return None
     if is_temp:
-        return f"/uploads/temp/{filename}"
-    return f"/uploads/videos/{filename}"
+        return f"/storage/temp/{filename}"
+    return f"/storage/uploads/videos/{filename}"
 
 
 def get_thumbnail_url(filename: str) -> str:
     """Generate full URL for thumbnail file."""
-    if not filename or filename == "default_thumbnail.png":
-        return "/uploads/thumbnails/default_thumbnail.png"
-    return f"/uploads/thumbnails/{filename}"
+    if not filename: return None
+    return f"/storage/uploads/thumbnails/{filename}"
 
 
 def get_preview_url(filename: str) -> str:
     """Generate full URL for preview frame."""
-    return f"/uploads/previews/{filename}"
+    if not filename: return None
+    return f"/storage/uploads/previews/{filename}"
 
 def parse_tags(tags_val: Union[str, List, None]) -> List[str]:
     """Safely parse tags from DB (which might be JSON string) to List."""
@@ -167,11 +193,11 @@ def format_video_response(video: Video, include_duration: bool = False) -> dict:
         "category": video.category,
         "tags": parse_tags(video.tags),
         "visibility": video.visibility,
-        "scheduled_at": video.scheduled_at.isoformat() if video.scheduled_at else None,
+        "scheduled_at": (video.scheduled_at.isoformat() + "Z") if video.scheduled_at else None,
         "video_url": get_video_url(video.video_filename, is_temp=is_temp),
         "thumbnail_url": get_thumbnail_url(video.thumbnail_filename),
         "view_count": video.view_count,
-        "upload_date": video.upload_date.isoformat(),
+        "upload_date": video.upload_date.isoformat() + "Z",
         "duration": video.duration,
         "like_count": video.like_count,
         "author": {
@@ -179,10 +205,33 @@ def format_video_response(video: Video, include_duration: bool = False) -> dict:
             "username": video.author.username,
             "profile_image": video.author.profile_image,
             "video_count": video.author.videos.count() if video.author else 0
-        }
+        },
+        "resolutions": _parse_resolutions(video),
+        "status": video.status or "published",
     }
     
     return response
+
+
+def _parse_resolutions(video) -> dict:
+    """Parse video.resolutions into a URL-mapped dict."""
+    raw = video.resolutions
+    # Parse stringified JSON if the DB returned a string
+    while isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not raw:
+        return None
+    
+    if not isinstance(raw, dict) or not raw:
+        return None
+    
+    result = {}
+    for label, filename in raw.items():
+        result[label] = f"/storage/uploads/videos/{filename}"
+    return result
 
 
 # ============================================================================
@@ -218,6 +267,42 @@ async def upload_video(
     
     try:
         print(f"[UPLOAD] Starting video upload for user {current_user.username} - Title: {title}")
+        
+        # ── DRAFT CLEANUP: Delete previous draft to prevent storage bloat ──
+        existing_draft = db.query(Video).filter(
+            Video.user_id == current_user.id,
+            Video.status == 'draft'
+        ).order_by(Video.upload_date.desc()).first()
+        
+        if existing_draft:
+            # Delete the old temp file
+            try:
+                old_temp_path = secure_resolve(TEMP_UPLOADS_DIR, existing_draft.video_filename)
+                if old_temp_path.exists():
+                    os.remove(str(old_temp_path))
+                    print(f"[DRAFT CLEANUP] Deleted old temp file: {existing_draft.video_filename}")
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old temp file: {e}")
+            
+            # Delete old thumbnail if it exists
+            try:
+                if existing_draft.thumbnail_filename:
+                    old_thumb_path = secure_resolve(THUMBNAILS_DIR, existing_draft.thumbnail_filename)
+                    if old_thumb_path.exists():
+                        os.remove(str(old_thumb_path))
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old thumbnail: {e}")
+            
+            # Delete old preview frames
+            try:
+                for preview_file in PREVIEWS_DIR.glob(f"video_{existing_draft.id}_preview_*.*"):
+                    os.remove(str(preview_file))
+            except Exception as e:
+                print(f"[DRAFT CLEANUP] Could not delete old previews: {e}")
+            
+            db.delete(existing_draft)
+            db.commit()
+            print(f"[DRAFT CLEANUP] Deleted previous draft video ID {existing_draft.id}")
         
         # Validate file
         file_size = 0
@@ -256,10 +341,10 @@ async def upload_video(
             os.makedirs(thumbnail_path.parent, exist_ok=True)
             with open(thumbnail_path, "wb") as buffer:
                 shutil.copyfileobj(thumbnail_file.file, buffer)
+            thumbnail_success = True
         else:
-            thumbnail_success = generate_thumbnail(str(video_path), str(thumbnail_path), timestamp=1.0)
-            if not thumbnail_success:
-                thumbnail_filename = "default_thumbnail.png"
+            # We will generate it from the video later
+            thumbnail_success = False
         
         # Extract metadata
         metadata = get_video_metadata(str(video_path))
@@ -299,7 +384,7 @@ async def upload_video(
             category=category,
             tags=tags_list, # SQLAlchemy handles this if type is JSON, or we might need json.dumps if Text
             visibility='private', 
-            status='processing', # Initial status
+            status='draft', # Initial status — becomes 'published' on final publish
             scheduled_at=scheduled_datetime,
             video_filename=video_filename,
             thumbnail_filename=thumbnail_filename,
@@ -318,25 +403,39 @@ async def upload_video(
         db.add(new_video)
         db.commit()
         db.refresh(new_video)
-        
-        background_tasks.add_task(
-            generate_preview_frames,
-            str(video_path),
-            str(PREVIEWS_DIR),
-            new_video.id,
-            3
+        # 1. Generate the 3 high-quality preview frames for the interactive picker
+        preview_frames = generate_preview_frames(
+            str(video_path), 
+            str(PREVIEWS_DIR), 
+            new_video.id
         )
         
-        preview_frames_urls = [get_preview_url(f"video_{new_video.id}_preview_{i}.jpg") for i in range(1, 4)]
+        # 2. Extract first frame as temporary thumbnail if one wasn't uploaded
+        if not thumbnail_success:
+            thumb_filename = f"thumb_{new_video.id}.jpg"
+            thumb_path = THUMBNAILS_DIR / thumb_filename
+            
+            # Generate thumbnail at 1.0s mark
+            thumbnail_success = generate_thumbnail(str(video_path), str(thumb_path), timestamp=1.0)
+            
+            if thumbnail_success:
+                new_video.thumbnail_filename = thumb_filename
+                db.add(new_video)
+                db.commit()
+                logger.info(f"Initial thumbnail generated for video {new_video.id}")
+            else:
+                logger.error(f"Failed to generate initial thumbnail for video {new_video.id}")
+            
+        preview_frames_urls = [get_preview_url(f) for f in preview_frames]
         
         return VideoUploadResponse(
             id=new_video.id,
             title=new_video.title,
             description=new_video.description,
             video_url=get_video_url(video_filename, is_temp=True),
-            thumbnail_url=get_thumbnail_url(thumbnail_filename),
+            thumbnail_url=get_thumbnail_url(new_video.thumbnail_filename),
             view_count=new_video.view_count,
-            upload_date=new_video.upload_date.isoformat(),
+            upload_date=new_video.upload_date.isoformat() + "Z",
             preview_frames=preview_frames_urls,
             author=AuthorResponse(
                 id=current_user.id,
@@ -347,14 +446,51 @@ async def upload_video(
         )
         
     except HTTPException:
-        if video_path and video_path.exists(): cleanup_file(str(video_path))
-        if thumbnail_path and thumbnail_filename != "default_thumbnail.png" and thumbnail_path.exists(): cleanup_file(str(thumbnail_path))
+        if video_path and os.path.exists(video_path): cleanup_file(str(video_path))
+        if thumbnail_path and thumbnail_filename and os.path.exists(thumbnail_path): cleanup_file(str(thumbnail_path))
         raise
     except Exception as e:
-        if video_path and video_path.exists(): cleanup_file(str(video_path))
-        if thumbnail_path and thumbnail_filename != "default_thumbnail.png" and thumbnail_path.exists(): cleanup_file(str(thumbnail_path))
+        if video_path and os.path.exists(video_path): cleanup_file(str(video_path))
+        if thumbnail_path and thumbnail_filename and os.path.exists(thumbnail_path): cleanup_file(str(thumbnail_path))
         print(f"[UPLOAD ERROR] {e}")
+        logger.exception("Video upload failed")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {str(e)}")
+
+
+@router.get("/drafts")
+def get_user_draft(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get the user's most recent draft video for resume-upload flow.
+    Returns a single draft object or {"draft": null} if none exist.
+    """
+    draft = db.query(Video).filter(
+        Video.user_id == current_user.id,
+        Video.status == 'draft'
+    ).order_by(Video.upload_date.desc()).first()
+    
+    if not draft:
+        return {"draft": None}
+    
+    return {
+        "draft": {
+            "id": draft.id,
+            "title": draft.title,
+            "description": draft.description,
+            "category": draft.category,
+            "tags": parse_tags(draft.tags),
+            "video_url": get_video_url(draft.video_filename, is_temp=True),
+            "thumbnail_url": get_thumbnail_url(draft.thumbnail_filename),
+            "duration": draft.duration,
+            "upload_date": draft.upload_date.isoformat() + "Z",
+            "preview_frames": [
+                get_preview_url(f.name) 
+                for f in PREVIEWS_DIR.glob(f"video_{draft.id}_preview_*.*")
+            ] if PREVIEWS_DIR.exists() else []
+        }
+    }
 
 
 @router.get("/", response_model=List[VideoListResponse])
@@ -379,7 +515,7 @@ def get_all_videos(
     if category: query = query.filter(Video.category == category)
     if search:
         query = query.filter(
-            or_(Video.title.ilike(f"%{search}%"), Video.description.ilike(f"%{search}%"))
+            or_(Video.title.ilike(f"%{search}%"), Video.description.ilike(f"%{search}%"), Video.tags.ilike(f"%{search}%"))
         )
     
     videos = query.order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
@@ -391,13 +527,14 @@ def get_all_videos(
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags), # FIXED: Parse tags here
             like_count=video.like_count,
             status=video.status,
             visibility=video.visibility,
+            resolutions=_parse_resolutions(video),
             author=AuthorResponse(
                 id=video.author.id,
                 username=video.author.username,
@@ -408,7 +545,7 @@ def get_all_videos(
         for video in videos
     ]
 
-@router.get("/semantic-search", response_model=List[VideoListResponse])
+@router.get("/semantic-search", response_model=CombinedSearchResponse)
 def semantic_search(
     query: str,
     limit: int = 12,
@@ -416,89 +553,102 @@ def semantic_search(
 ):
     """
     Performs context-aware local semantic search using sentence-transformers and numpy.
+    Falls back to powerful lexical search if ML returns nothing.
+    Now includes user channel matches.
     """
     if not query.strip():
-        return []
-        
-    try:
-        # 1. Generate local embedding for user query
-        query_vector = generate_embedding(query.strip())
-    except Exception as e:
-        print(f"[ERROR] Failed to generate query embedding: {e}")
-        return []
-        
+        return CombinedSearchResponse(channels=[], videos=[])
+
+    from sqlalchemy import cast, String
+
     now = datetime.utcnow()
     clean_query = query.strip()
-    
-    # 2. Bypass ML for very short queries (1-2 chars) which produce extreme noise
-    if len(clean_query) < 3:
-        print(f"[SEMANTIC SEARCH] Query '{clean_query}' is too short ({len(clean_query)} chars). Using exact substring match fallback.")
-        
-        # Only match if the title explicitly Starts with the short query, or is exactly the short query.
-        # Removing % clean_query % because SQLite matching can still find letters inside words
-        # if spaces aren't strictly respected by the tokenizer.
-        eligible_videos = db.query(Video).filter(
+    top_videos = []  # This is the master result list
+
+    # ── PHASE 1: Attempt ML/Semantic Search ──
+    try:
+        query_vector = generate_embedding(clean_query)
+
+        if query_vector and len(clean_query) >= 3:
+            # Fetch all eligible videos that have embeddings
+            eligible_videos = db.query(Video).filter(
+                Video.visibility == "public",
+                Video.status == "published",
+                or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+                Video.embedding != None
+            ).all()
+
+            scored_videos = []
+            for video in eligible_videos:
+                try:
+                    if video.embedding is None:
+                        continue
+                    video_vector = video.embedding if isinstance(video.embedding, list) else json.loads(video.embedding)
+                    if not video_vector:
+                        continue
+                    score = compute_cosine_similarity(query_vector, video_vector)
+                    if clean_query.lower() in video.title.lower():
+                        score += 0.2
+                    scored_videos.append((score, video))
+                except Exception:
+                    continue
+
+            scored_videos.sort(key=lambda x: x[0], reverse=True)
+            top_videos = [v[1] for v in scored_videos[:limit] if v[0] > 0.45]
+
+        elif len(clean_query) < 3:
+            # Short query: use prefix match
+            short_matches = db.query(Video).filter(
+                Video.visibility == "public",
+                Video.status == "published",
+                or_(Video.scheduled_at == None, Video.scheduled_at <= now),
+                or_(
+                    Video.title.ilike(f"{clean_query}%"),
+                    Video.title.ilike(clean_query),
+                )
+            ).limit(limit).all()
+            top_videos = short_matches
+
+    except Exception:
+        pass  # ML failure is fine — fallback handles it
+
+    # ── PHASE 2: UNCONDITIONAL LEXICAL FALLBACK ──
+    # If ML returned nothing for ANY reason, lexical search always fires.
+    if not top_videos:
+        top_videos = db.query(Video).filter(
             Video.visibility == "public",
             Video.status == "published",
             or_(Video.scheduled_at == None, Video.scheduled_at <= now),
             or_(
-                Video.title.ilike(f"{clean_query}%"),          # Starts with
-                Video.title.ilike(clean_query),                # Exact match
+                Video.title.ilike(f"%{clean_query}%"),
+                Video.description.ilike(f"%{clean_query}%"),
+                cast(Video.tags, String).ilike(f"%{clean_query}%"),
+                Video.category.ilike(f"%{clean_query}%")
             )
-        ).all()
-        # No scoring needed, return direct match
-        scored_videos = [(1.0, v) for v in eligible_videos]
-        top_videos = [v[1] for v in scored_videos[:limit]]
-        print(f"[SEMANTIC SEARCH] Found {len(top_videos)} substring matches.")
-    else:
-        # Fetch all eligible videos that have embeddings stored natively in SQLite
-        eligible_videos = db.query(Video).filter(
-            Video.visibility == "public",
-            Video.status == "published",
-            or_(Video.scheduled_at == None, Video.scheduled_at <= now),
-            Video.embedding != None
-        ).all()
-        
-        if not eligible_videos:
-            return []
-            
-        # 3. Calculate Cosine Similarity locally using our custom numpy logic
-        scored_videos = []
-        for video in eligible_videos:
-            try:
-                # SQLAlchemy JSON column usually returns a Python list
-                video_vector = video.embedding if isinstance(video.embedding, list) else json.loads(video.embedding)
-                if not video_vector:
-                    continue
-                    
-                score = compute_cosine_similarity(query_vector, video_vector)
-                
-                # Boost score if there's an exact substring match in the title
-                if clean_query.lower() in video.title.lower():
-                    score += 0.2
-                    
-                scored_videos.append((score, video))
-                print(f"[SEMANTIC SEARCH] Score for video {video.id} ('{video.title}'): {score:.4f}")
-            except Exception as e:
-                print(f"[WARNING] Could not compute distance for video {video.id}: {e}")
-                continue
-                
-        # 4. Sort by score descending (highest similarity first)
-        scored_videos.sort(key=lambda x: x[0], reverse=True)
-        
-        # Take top N
-        # 0.45 threshold ensures we only return strong contextual/semantic matches.
-        top_videos = [v[1] for v in scored_videos[:limit] if v[0] > 0.45]
-        print(f"[SEMANTIC SEARCH] ML Search returned {len(top_videos)} strong matches above threshold 0.45.")
-    
-    return [
+        ).order_by(Video.view_count.desc()).limit(limit).all()
+
+    # ── PHASE 3: Search for matching Channels ──
+    channels_query = db.query(User).filter(User.username.ilike(f"%{clean_query}%")).limit(5).all()
+    channels_list = [
+        ChannelSearchResponse(
+            id=user.id,
+            username=user.username,
+            profile_image=user.profile_image,
+            subscriber_count=user.followers.count(),
+            video_count=user.videos.count()
+        )
+        for user in channels_query
+    ]
+
+    # ── PHASE 4: Format and return ──
+    videos_list = [
         VideoListResponse(
             id=video.id,
             title=video.title,
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags),
@@ -513,6 +663,54 @@ def semantic_search(
             )
         )
         for video in top_videos
+    ]
+    
+    return CombinedSearchResponse(channels=channels_list, videos=videos_list)
+
+@router.get("/history", response_model=List[VideoListResponse])
+def get_video_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch the current user's watch history (Placeholder)."""
+    # Currently returning empty list until WatchHistory model is implemented
+    return []
+
+@router.get("/liked", response_model=List[VideoListResponse])
+def get_liked_videos(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch videos liked by the current user."""
+    from backend.database.models import Like
+    
+    # Query videos linked to likes by the current user
+    liked_videos = db.query(Video).join(Like).filter(
+        Like.user_id == current_user.id,
+        Like.is_dislike == False
+    ).order_by(Like.created_at.desc()).all()
+    
+    return [
+        VideoListResponse(
+            id=video.id,
+            title=video.title,
+            thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
+            view_count=video.view_count,
+            upload_date=video.upload_date.isoformat() + "Z",
+            duration=video.duration,
+            category=video.category,
+            tags=parse_tags(video.tags),
+            like_count=video.like_count,
+            status=video.status,
+            visibility=video.visibility,
+            author=AuthorResponse(
+                id=video.author.id,
+                username=video.author.username,
+                profile_image=video.author.profile_image,
+                video_count=video.author.videos.count()
+            )
+        )
+        for video in liked_videos
     ]
 
 @router.get("/{video_id}", response_model=VideoResponse)
@@ -570,6 +768,19 @@ class VideoUpdateRequest(BaseModel):
     visibility: Optional[str] = None
     scheduled_at: Optional[str] = None
     selected_preview_frame: Optional[str] = None
+
+    @validator('title', 'description', 'category', pre=True, always=True)
+    def sanitize_text_fields(cls, v):
+        if v is None: return v
+        import re
+        return re.sub(r'<[^>]+>', '', str(v)).strip()
+
+    @validator('tags', pre=True, always=True)
+    def sanitize_tags(cls, v):
+        if v is None: return v
+        import re
+        return [re.sub(r'<[^>]+>', '', str(tag)).strip() for tag in v]
+
     class Config: from_attributes = True
 
 @router.post("/{video_id}/thumbnail", response_model=VideoResponse)
@@ -638,6 +849,14 @@ async def update_video(
     if update_data.tags is not None: 
         video.tags = json.dumps(update_data.tags)
         needs_new_embedding = True
+
+    # ── Auto-Hashtag Injection: append #tags to description if not already present ──
+    if update_data.tags and video.description is not None:
+        tag_list = [t.strip() for t in update_data.tags if t.strip()]
+        if tag_list:
+            hashtag_string = " ".join([f"#{t.replace(' ', '')}" for t in tag_list])
+            if hashtag_string not in (video.description or ""):
+                video.description = f"{video.description}\n\n{hashtag_string}".strip()
         
     if needs_new_embedding:
         try:
@@ -688,6 +907,18 @@ async def update_video(
                 print(f"[CLEANUP] Deleted residue temp source: {video.video_filename}")
              except Exception as e:
                 print(f"[CLEANUP WARNING] Residue cleanup failed: {e}")
+
+        # Trigger background transcoding when publishing
+        if perm_video_path.exists():
+            def _run_transcode(vid=video.id, src=str(perm_video_path)):
+                transcode_video(
+                    video_id=vid,
+                    source_path=src,
+                    videos_dir=str(VIDEOS_DIR),
+                    db_session_factory=SessionLocal
+                )
+            threading.Thread(target=_run_transcode, daemon=True).start()
+            print(f"[TRANSCODE] Background transcoding started for video {video.id}")
     
     # POST-PUBLISH CLEANUP
     selected_thumbnail_path = None
@@ -735,7 +966,11 @@ async def update_video(
 @router.get("/user/{user_id}", response_model=List[VideoListResponse])
 def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
     if limit > 100: limit = 100
-    videos = db.query(Video).filter(Video.user_id == user_id).order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
+    videos = db.query(Video).filter(
+        Video.user_id == user_id,
+        Video.status == 'published',
+        Video.visibility == 'public'
+    ).order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
     
     return [
         VideoListResponse(
@@ -744,7 +979,7 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
             video_url=get_video_url(video.video_filename, is_temp=False),
             thumbnail_url=get_thumbnail_url(video.thumbnail_filename),
             view_count=video.view_count,
-            upload_date=video.upload_date.isoformat(),
+            upload_date=video.upload_date.isoformat() + "Z",
             duration=video.duration,
             category=video.category,
             tags=parse_tags(video.tags), # FIXED
@@ -760,3 +995,31 @@ def get_user_videos(user_id: int, skip: int = 0, limit: int = 20, db: Session = 
         )
         for video in videos
     ]
+
+
+@router.get("/{video_id}/resolutions")
+def get_video_resolutions(
+    video_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get available resolutions and transcoding status for a video."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    
+    resolutions = _parse_resolutions(video)
+    
+    # Determine transcoding status
+    if video.status == 'transcoding':
+        transcode_status = 'processing'
+    elif resolutions and len(resolutions) > 1:
+        transcode_status = 'ready'
+    elif resolutions and len(resolutions) == 1:
+        transcode_status = 'ready'  # Only original available
+    else:
+        transcode_status = 'pending'
+    
+    return {
+        "status": transcode_status,
+        "resolutions": resolutions or {"original": get_video_url(video.video_filename)}
+    }

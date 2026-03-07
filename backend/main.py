@@ -8,6 +8,7 @@ FastAPI application setup and configuration.
 from dotenv import load_dotenv
 from pathlib import Path
 import sys
+import os
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
@@ -16,15 +17,18 @@ if sys.stdout.encoding != 'utf-8':
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 import logging
 import asyncio
+from contextlib import asynccontextmanager
 
 # Suppress all INFO-level logs -- only show warnings and errors
 logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 from backend.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, API_PREFIX, STORAGE_DIR, UPLOADS_DIR
 from backend.routes import auth_router, video_router, comment_router, like_router, trending_router, recommendation_router, chat_router
@@ -34,6 +38,45 @@ from backend.routes.admin_routes import router as admin_router
 from backend.database import init_db
 from backend.services.cleanup_service import startup_cleanup, cleanup_loop
 
+# Lifespan context manager for startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database and ensure directories exist."""
+    init_db()
+    
+    # Run full storage cleanup (stuck uploads, orphaned files, temp wipe)
+    try:
+        startup_cleanup()
+    except Exception as e:
+        print(f"[WARNING] Startup cleanup failed: {e}")
+        
+    # Task 1: Start Periodic Background Cleanup
+    cleanup_task = asyncio.create_task(cleanup_loop())
+
+    # Ensure storage directories exist
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n[INFO] Static files mounted at: {os.path.abspath(STORAGE_DIR)}")
+
+    # -- Clean Startup Banner --
+    print("\n" + "=" * 52)
+    print(f"  [*] {APP_NAME} v{APP_VERSION}")
+    print("-" * 52)
+    print("  > API Server:   http://localhost:8000")
+    print(f"  > API Docs:     http://localhost:8000{API_PREFIX}/docs")
+    print("  > Frontend:     http://localhost:3000")
+    print("=" * 52 + "\n")
+
+    yield
+    
+    # Shutdown logic
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        raise
+
 # Create FastAPI application
 app = FastAPI(
     title=APP_NAME,
@@ -41,7 +84,18 @@ app = FastAPI(
     description="A video-sharing platform for students",
     docs_url=f"{API_PREFIX}/docs",
     redoc_url=f"{API_PREFIX}/redoc",
+    lifespan=lifespan
 )
+
+# ── Global Exception Handler: NEVER leak stack traces to the frontend ──
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}:\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."}
+    )
 
 # Configure CORS
 app.add_middleware(
@@ -52,13 +106,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Custom middleware to ensure CORS headers on /storage static file responses
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class StaticFilesCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/storage"):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+app.add_middleware(StaticFilesCORSMiddleware)
+
+# Mount static files securely using explicit absolute path
+# We use /storage as the URL prefix to match urlHelper.js and config.py logic
+STORAGE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "storage"))
+
+# Critical: Ensure directories exist before mounting
+os.makedirs(STORAGE_PATH, exist_ok=True)
+os.makedirs(os.path.join(STORAGE_PATH, "uploads", "thumbnails"), exist_ok=True)
+os.makedirs(os.path.join(STORAGE_PATH, "backgrounds"), exist_ok=True)
+os.makedirs(os.path.join(STORAGE_PATH, "uploads", "banners"), exist_ok=True)
+
+app.mount("/storage", StaticFiles(directory=STORAGE_PATH), name="storage")
+
 # Include routers
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(trending_router, prefix=API_PREFIX)
 app.include_router(video_router, prefix=API_PREFIX)
 app.include_router(comment_router, prefix=API_PREFIX)
 app.include_router(like_router, prefix=API_PREFIX)
+app.include_router(channel_router, prefix=API_PREFIX)
 app.include_router(recommendation_router, prefix=API_PREFIX)
+app.include_router(stream_router, prefix=f"{API_PREFIX}/streams")
 
 # Chat routes: WS endpoint at /api/v1/ws/chat/... and HTTP at /api/v1/chat/history/...
 app.include_router(chat_router, prefix=API_PREFIX)
@@ -70,33 +153,6 @@ app.mount("/storage", StaticFiles(directory=str(Path(__file__).resolve().parent.
 # /uploads for direct access to videos/thumbnails/avatars
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database and ensure directories exist."""
-    init_db()
-    
-    # Run full storage cleanup (stuck uploads, orphaned files, temp wipe)
-    try:
-        startup_cleanup()
-    except Exception as e:
-        print(f"[WARNING] Startup cleanup failed: {e}")
-        
-    # Task 1: Start Periodic Background Cleanup
-    asyncio.create_task(cleanup_loop())
-
-    # Ensure storage directories exist
-    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-
-    # -- Clean Startup Banner --
-    print("\n" + "=" * 52)
-    print(f"  [*] {APP_NAME} v{APP_VERSION}")
-    print("-" * 52)
-    print("  > API Server:   http://localhost:8000")
-    print(f"  > API Docs:     http://localhost:8000{API_PREFIX}/docs")
-    print("  > Frontend:     http://localhost:3000")
-    print("=" * 52 + "\n")
 
 
 @app.on_event("shutdown")
@@ -137,7 +193,7 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "backend.app:app",
+        "backend.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True  # Enable auto-reload in development

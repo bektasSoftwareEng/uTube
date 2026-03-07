@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import ApiClient from '../utils/ApiClient';
 import { UTUBE_USER, UTUBE_TOKEN } from '../utils/authConstants';
 import { getAvatarUrl } from '../utils/urlHelper';
+import toast from 'react-hot-toast';
 
 
 
@@ -23,10 +24,14 @@ const EditProfile = () => {
         confirmPassword: ''
     });
 
+    const [usernameTaken, setUsernameTaken] = useState(false);
+
     const [profileImage, setProfileImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [verificationStep, setVerificationStep] = useState(false);
     const [verificationCode, setVerificationCode] = useState('');
+    const [confirmRemovePP, setConfirmRemovePP] = useState(false);
+    const [removingPP, setRemovingPP] = useState(false);
 
     const safeProfilePreview = useMemo(() => {
         const rawUrl = imagePreview || (user ? getAvatarUrl(user.profile_image, user.username) : '');
@@ -60,6 +65,24 @@ const EditProfile = () => {
             if (imagePreview) URL.revokeObjectURL(imagePreview);
             setProfileImage(file);
             setImagePreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleRemoveProfilePicture = async () => {
+        setRemovingPP(true);
+        try {
+            const res = await ApiClient.delete('/auth/me/profile-picture');
+            localStorage.setItem(UTUBE_USER, JSON.stringify(res.data));
+            setUser(res.data);
+            setImagePreview(null);
+            setProfileImage(null);
+            window.dispatchEvent(new Event('authChange'));
+            toast.success('Profile picture removed!');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove profile picture');
+        } finally {
+            setRemovingPP(false);
+            setConfirmRemovePP(false);
         }
     };
 
@@ -114,9 +137,14 @@ const EditProfile = () => {
             setTimeout(() => navigate('/profile'), 1500);
 
         } catch (err) {
-            console.error(err);
+            console.warn('Profile update failed.');
             const errorMsg = err.response?.data?.detail || "Failed to update profile";
-            setError(errorMsg);
+
+            if (err.response?.status === 400 && errorMsg === "Username is already taken.") {
+                setUsernameTaken(true);
+            } else {
+                setError(errorMsg);
+            }
         } finally {
             setLoading(false);
         }
@@ -142,7 +170,7 @@ const EditProfile = () => {
             setSuccess("Email successfully verified and updated!");
             setTimeout(() => navigate('/profile'), 1500);
         } catch (err) {
-            console.error(err);
+            console.warn('Email verification failed.');
             setError(err.response?.data?.detail || "Invalid or expired verification code.");
         } finally {
             setLoading(false);
@@ -197,6 +225,42 @@ const EditProfile = () => {
                                 </label>
                             </div>
                             <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Profile Picture</p>
+                            {/* Remove Profile Picture Button */}
+                            {user?.profile_image && !imagePreview && (
+                                <div className="mt-2">
+                                    {!confirmRemovePP ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmRemovePP(true)}
+                                            className="flex items-center gap-1.5 text-xs font-bold text-red-400/70 hover:text-red-400 transition-colors"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Remove Photo
+                                        </button>
+                                    ) : (
+                                        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                                            <span className="text-xs text-red-300 font-medium">Remove photo?</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveProfilePicture}
+                                                disabled={removingPP}
+                                                className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                                            >
+                                                {removingPP ? 'Removing...' : 'Yes'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setConfirmRemovePP(false)}
+                                                className="text-xs font-bold text-white/50 hover:text-white/70 transition-colors"
+                                            >
+                                                No
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Inputs */}
@@ -206,10 +270,16 @@ const EditProfile = () => {
                                 <input
                                     type="text"
                                     value={formData.username}
-                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/50 focus:bg-white/10 transition-all font-medium"
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, username: e.target.value });
+                                        if (usernameTaken) setUsernameTaken(false);
+                                    }}
+                                    className={`w-full bg-white/5 border ${usernameTaken ? 'border-red-500/50 focus:shadow-[0_0_15px_rgba(229,9,20,0.15)]' : 'border-white/10 focus:border-primary/50'} rounded-xl px-4 py-3 outline-none focus:bg-white/10 transition-all font-medium`}
                                     required
                                 />
+                                {usernameTaken && (
+                                    <p className="text-red-500 text-xs mt-1 ml-1 font-medium">This username is already taken. Please choose another.</p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-white/60 uppercase tracking-widest ml-1">Email</label>

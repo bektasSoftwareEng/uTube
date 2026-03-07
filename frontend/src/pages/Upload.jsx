@@ -220,6 +220,7 @@ const VideoWallBackground = ({ videoUrl }) => {
 const Upload = () => {
     const [currentStep, setCurrentStep] = useState(1);
     const [processingProgress, setProcessingProgress] = useState(0);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
@@ -227,7 +228,11 @@ const Upload = () => {
     const [isShaking, setIsShaking] = useState(false);
 
     const [formData, setFormData] = useState({
-        videoFile: null, title: '', description: '', category: '', tags: [],
+        videoFile: null,
+        title: '',
+        description: '',
+        category: '',
+        tags: [],
         thumbnailFile: null, visibility: 'public', scheduledAt: '', language: 'English', isMadeForKids: false,
     });
 
@@ -249,18 +254,19 @@ const Upload = () => {
     const abortControllerRef = useRef(null);
     const videoRef = useRef(null);
 
+    // ── Auth check on mount ──
     useEffect(() => {
         const token = localStorage.getItem(UTUBE_TOKEN);
-        if (!token) navigate('/login');
+        if (!token) { navigate('/login'); return; }
+
         return () => {
             if (videoPreview) URL.revokeObjectURL(videoPreview);
             if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
             if (abortControllerRef.current) abortControllerRef.current.abort();
         };
-    }, [navigate, videoPreview, thumbnailPreview]);
+    }, [navigate]);
 
     const updateFormData = (field, value) => {
-        // Removed real-time sanitization here to allow spacebar input (deferred to handleSubmit)
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -281,7 +287,7 @@ const Upload = () => {
         updateFormData('tags', formData.tags.filter((_, index) => index !== indexToRemove));
     };
 
-    const handleVideoChange = async (e) => {
+    const handleVideoChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
@@ -289,12 +295,26 @@ const Upload = () => {
         const maxVideoSize = 500 * 1024 * 1024;
         if (file.size > maxVideoSize) { setError('Video file too large. Max size is 500MB.'); return; }
 
+        // Clean slate: revoke old preview, reset ALL metadata for the new file
         if (videoPreview) URL.revokeObjectURL(videoPreview);
-        updateFormData('videoFile', file);
+        if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+        setFormData({
+            videoFile: file,
+            title: '',
+            description: '',
+            category: '',
+            tags: [],
+            thumbnailFile: null, visibility: 'public', scheduledAt: '', language: 'English', isMadeForKids: false,
+        });
         setVideoPreview(URL.createObjectURL(file));
+        setThumbnailPreview(null);
+        setSelectedPreviewFrame(null);
+        setPreviewFrames([]);
+        setUploadedVideoId(null);
         setError(null);
-        await startVideoProcessing(file);
+        // Jump to Step 2 IMMEDIATELY — upload runs async in the background
         setCurrentStep(2);
+        startVideoProcessing(file);
     };
 
     const handleMetadataLoaded = (e) => {
@@ -306,33 +326,39 @@ const Upload = () => {
 
     const startVideoProcessing = async (videoFile) => {
         setVideoProcessing(true);
-        setProcessingProgress(10);
+        setUploadProgress(0);
+        setProcessingProgress(0);
         const processData = new FormData();
         processData.append('video_file', videoFile);
-        processData.append('title', formData.title || 'Processing');
+        processData.append('title', formData.title || 'Untitled');
         processData.append('description', formData.description || '');
         processData.append('category', formData.category || '');
 
         try {
-            setProcessingProgress(30);
             const response = await ApiClient.post('/videos/', processData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-                onUploadProgress: (e) => {
-                    const percent = Math.round((e.loaded * 100) / e.total);
-                    setProcessingProgress(30 + (percent * 0.6));
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setUploadProgress(percentCompleted);
+                    // Map upload progress to processing progress (0-90%)
+                    setProcessingProgress(Math.round(percentCompleted * 0.9));
                 },
             });
-            setProcessingProgress(95);
+            setUploadProgress(100);
+            setProcessingProgress(100);
             setUploadedVideoId(response.data.id);
             if (response.data.preview_frames && response.data.preview_frames.length > 0) {
                 setPreviewFrames(response.data.preview_frames);
             }
-            setProcessingProgress(100);
             setVideoProcessing(false);
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || 'Failed to process video';
-            setError(`Processing failed: ${errorMsg}`);
+            const errorDetail = err.response?.data?.detail;
+            let errorMsg = 'Failed to process video';
+            if (typeof errorDetail === 'string') errorMsg = errorDetail;
+            else if (Array.isArray(errorDetail) && errorDetail.length > 0) errorMsg = errorDetail[0]?.msg || JSON.stringify(errorDetail[0]);
+            else if (errorDetail && typeof errorDetail === 'object') errorMsg = errorDetail.msg || JSON.stringify(errorDetail);
+            setError(`Upload failed: ${errorMsg}`);
             setVideoProcessing(false);
+            setUploadProgress(0);
             setProcessingProgress(0);
         }
     };
@@ -396,13 +422,26 @@ const Upload = () => {
         return false;
     };
 
-    const confirmReset = () => {
+    // ── Aggressive Cleanup: Delete video from backend on cancel ──
+    const deleteUploadedVideo = async () => {
+        if (uploadedVideoId) {
+            try {
+                await ApiClient.delete(`/videos/${uploadedVideoId}`);
+                console.log('[Cleanup] Deleted abandoned video:', uploadedVideoId);
+            } catch (err) {
+                console.warn('[Cleanup] Failed to delete video:', err);
+            }
+        }
+    };
+
+    const confirmReset = async () => {
+        await deleteUploadedVideo();
         if (videoPreview) URL.revokeObjectURL(videoPreview);
         if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
         setFormData({ videoFile: null, title: '', description: '', category: '', tags: [], thumbnailFile: null, visibility: 'public', scheduledAt: '', language: 'English', isMadeForKids: false });
         setVideoPreview(null); setVideoDuration(null); setVideoProcessing(false); setUploadedVideoId(null);
-        setPreviewFrames([]); setSelectedPreviewFrame(null); setProcessingProgress(0); setError(null); setCurrentStep(1);
-        setUploadTimestamp(Date.now()); setShowResetModal(false);
+        setPreviewFrames([]); setSelectedPreviewFrame(null); setProcessingProgress(0); setUploadProgress(0); setError(null); setCurrentStep(1);
+        setUploadTimestamp(Date.now()); setShowResetModal(false); setThumbnailPreview(null);
     };
 
     const handleSubmit = async (e) => {
@@ -431,9 +470,8 @@ const Upload = () => {
             if (formData.thumbnailFile) {
                 const thumbData = new FormData();
                 thumbData.append('thumbnail_file', formData.thumbnailFile);
-                await ApiClient.post(`/videos/${uploadedVideoId}/thumbnail`, thumbData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                // DO NOT set Content-Type manually — Axios must auto-set the multipart boundary
+                await ApiClient.post(`/videos/${uploadedVideoId}/thumbnail`, thumbData);
             }
 
             if (response.status === 200 || response.status === 201) {
@@ -483,62 +521,97 @@ const Upload = () => {
     // 1. Browser Level (Tab Close/Refresh)
     useEffect(() => {
         const handleBeforeUnload = (e) => {
-            if (isUploading) {
-                const message = "⚠️ Yükleme işlemi devam ediyor! Ayrılırsanız iptal edilecek.";
+            if (currentStep > 1 && !success) {
                 e.preventDefault();
-                e.returnValue = message;
-                return message;
+                e.returnValue = '';
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [isUploading]);
+    }, [currentStep, success]);
 
     // 2. React Router Level (Internal Navigation)
     const blocker = useBlocker(
         ({ currentLocation, nextLocation }) =>
-            isUploading && currentLocation.pathname !== nextLocation.pathname
+            currentStep > 1 && !success && currentLocation.pathname !== nextLocation.pathname
     );
 
     return (
         <div className="relative min-h-screen bg-transparent text-white font-sans selection:bg-red-500/30">
-            {/* UPLOAD GUARD NOTIFICATION (Custom UI for internal navigation attempts) */}
+            {/* NAVIGATION GUARD MODAL (Custom UI for internal navigation attempts) */}
             <AnimatePresence>
-                {(isUploading || blocker.state === "blocked") && (
+                {blocker.state === "blocked" && (
                     <motion.div
-                        initial={{ opacity: 0, y: 50, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                        className="fixed bottom-6 right-6 flex items-center gap-3 p-4 rounded-xl border border-red-500/30 shadow-2xl transition-all animate-fade-in z-[9999] bg-red-950/80 backdrop-blur-md"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-md"
+                        onClick={() => blocker.reset()}
                     >
-                        <div className="flex items-center gap-3">
-                            <span className="text-2xl animate-pulse">⚠️</span>
-                            <div>
-                                <p className="font-bold text-white text-base">Yükleme Devam Ediyor!</p>
-                                <p className="text-red-200 text-xs">Sayfadan ayrılırsanız işleminiz iptal edilecektir.</p>
-                            </div>
-                        </div>
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#141414] border border-gray-800 rounded-2xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+                        >
+                            {/* Top accent line */}
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#e50914] to-transparent opacity-50" />
 
-                        {blocker.state === "blocked" && (
-                            <div className="flex items-center gap-3 pl-4 border-l border-red-500/30">
+                            {/* Icon */}
+                            <div className="w-16 h-16 rounded-full bg-red-900/30 border border-red-500/30 flex items-center justify-center mx-auto mb-6">
+                                <span className="text-3xl">⚠️</span>
+                            </div>
+
+                            {/* Title & Description */}
+                            <h3 className="text-2xl font-bold text-white mb-3 text-center">Discard Upload?</h3>
+                            <p className="text-gray-400 mb-8 leading-relaxed text-center text-sm">
+                                You have an upload in progress. If you leave, your video will be <strong className="text-red-400">permanently deleted</strong> and all progress will be lost.
+                            </p>
+
+                            {/* Buttons */}
+                            <div className="flex justify-center gap-4">
                                 <button
                                     onClick={() => blocker.reset()}
-                                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-colors"
+                                    className="px-8 py-3 text-white hover:bg-white/10 rounded-xl transition-all font-bold border border-gray-700 hover:border-gray-500"
                                 >
-                                    Yüklemeye Devam Et
+                                    Cancel
                                 </button>
                                 <button
-                                    onClick={() => blocker.proceed()}
-                                    className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-bold transition-colors shadow-lg"
+                                    onClick={async () => {
+                                        await deleteUploadedVideo();
+                                        blocker.proceed();
+                                    }}
+                                    className="px-8 py-3 bg-[#e50914] text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-900/30 hover:scale-[1.02] active:scale-[0.98]"
                                 >
-                                    İşlemi İptal Et ve Ayrıl
+                                    Delete & Leave
                                 </button>
                             </div>
-                        )}
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* ASYNC UPLOAD PROGRESS INDICATOR */}
+            {currentStep > 1 && uploadProgress < 100 && uploadProgress > 0 && (
+                <div className="fixed top-20 right-6 z-[999] bg-[#141414] border border-gray-800 rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3 min-w-[200px]">
+                    <div className="w-5 h-5 border-2 border-gray-700 border-t-[#e50914] rounded-full animate-spin" />
+                    <div className="flex-1">
+                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Uploading</p>
+                        <div className="h-1.5 bg-gray-800 rounded-full mt-1.5 overflow-hidden">
+                            <div className="h-full bg-[#e50914] transition-all duration-300 rounded-full shadow-[0_0_8px_#e50914]" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                    </div>
+                    <span className="text-sm font-mono text-[#e50914] font-bold">{uploadProgress}%</span>
+                </div>
+            )}
+            {currentStep > 1 && uploadProgress === 100 && !success && (
+                <div className="fixed top-20 right-6 z-[999] bg-green-950/80 border border-green-500/30 rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3">
+                    <span className="text-lg">✓</span>
+                    <span className="text-sm font-bold text-green-400">Upload Complete</span>
+                </div>
+            )}
 
             {/* BACKGROUND LAYERS (Z-0 and Z-10) */}
             <div className="min-h-screen bg-[#0f0f0f] text-white font-sans selection:bg-[#e50914] selection:text-white relative overflow-hidden flex items-center justify-center p-4">
@@ -719,7 +792,7 @@ const Upload = () => {
                                     </div>
                                     <div className="flex justify-center gap-6 border-t border-gray-800/50 pt-10">
                                         <button onClick={() => setCurrentStep(2)} className="px-8 py-4 text-gray-400 hover:text-white transition-colors font-bold uppercase tracking-wider hover:bg-white/5 rounded-xl text-sm">← Back to Details</button>
-                                        <button onClick={handleSubmit} disabled={isUploading || (!selectedPreviewFrame && !formData.thumbnailFile)} className="px-12 py-4 bg-[#e50914] text-white font-bold text-lg rounded-xl shadow-[0_0_25px_rgba(229,9,20,0.4)] hover:bg-red-700 hover:shadow-[0_0_40px_rgba(229,9,20,0.6)] hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">{isUploading ? <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>Publishing...</span> : '🚀 Publish Video'}</button>
+                                        <button onClick={handleSubmit} disabled={isUploading || uploadProgress < 100 || (!selectedPreviewFrame && !formData.thumbnailFile)} className="px-12 py-4 bg-[#e50914] text-white font-bold text-lg rounded-xl shadow-[0_0_25px_rgba(229,9,20,0.4)] hover:bg-red-700 hover:shadow-[0_0_40px_rgba(229,9,20,0.6)] hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">{isUploading ? <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>Publishing...</span> : '🚀 Publish Video'}</button>
                                     </div>
                                 </motion.div>
                             )}

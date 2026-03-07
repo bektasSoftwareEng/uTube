@@ -117,7 +117,7 @@ def _format_comment(comment, db: Session, user_id: Optional[int] = None, include
     return CommentResponse(
         id=comment.id,
         text=comment.text,
-        created_at=comment.created_at.isoformat(),
+        created_at=comment.created_at.isoformat() + "Z",
         author={
             "id": comment.author.id,
             "username": comment.author.username,
@@ -171,7 +171,7 @@ def create_comment(
     return {
         "id": new_comment.id,
         "text": new_comment.text,
-        "created_at": new_comment.created_at.isoformat(),
+        "created_at": new_comment.created_at.isoformat() + "Z",
         "author": {
             "id": current_user.id,
             "username": current_user.username,
@@ -354,7 +354,7 @@ def get_user_comments(
         CommentWithVideoResponse(
             id=comment.id,
             text=comment.text,
-            created_at=comment.created_at.isoformat(),
+            created_at=comment.created_at.isoformat() + "Z",
             author={
                 "id": comment.author.id,
                 "username": comment.author.username,
@@ -363,7 +363,7 @@ def get_user_comments(
             video={
                 "id": comment.video.id,
                 "title": comment.video.title,
-                "thumbnail_url": f"/uploads/thumbnails/{comment.video.thumbnail_filename}"
+                "thumbnail_url": f"/storage/uploads/thumbnails/{comment.video.thumbnail_filename}" if comment.video.thumbnail_filename else None
             }
         )
         for comment in comments

@@ -70,12 +70,23 @@ body {
 .volume-slider {
   appearance: none;
   -webkit-appearance: none;
-  height: 3px;
+  height: 4px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.2);
+  background: transparent;
   outline: none;
 }
 
+/* Track: 4px tall, red-fill via --vol CSS variable */
+.volume-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right,
+      #ef4444 0%,
+      #ef4444 var(--vol, 0%),
+      rgba(255, 255, 255, 0.2) var(--vol, 0%));
+  border-radius: 99px;
+  height: 4px;
+}
+
+/* Thumb: 12px, vertically centred on 4px track → margin-top: (4/2)-(12/2) = -4px */
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
@@ -84,6 +95,7 @@ body {
   background: #ffffff;
   cursor: pointer;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+  margin-top: -4px;
   transition: transform 0.15s;
 }
 
@@ -91,11 +103,23 @@ body {
   transform: scale(1.3);
 }
 
-.volume-slider::-webkit-slider-runnable-track {
+/* Firefox track */
+.volume-slider::-moz-range-track {
   background: linear-gradient(to right,
       #ef4444 0%,
       #ef4444 var(--vol, 0%),
       rgba(255, 255, 255, 0.2) var(--vol, 0%));
   border-radius: 99px;
-  height: 3px;
+  height: 4px;
+}
+
+/* Firefox thumb */
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
 }

@@ -39,6 +39,9 @@ git_current_branch.txt
 .DS_Store
 Thumbs.db
 
+# === Tests ===
+backend/tests/
+
 # === CodeQL ve Güvenlik Raporları ===
 codeql-db/
 codeql-report.csv
