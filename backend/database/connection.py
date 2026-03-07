@@ -180,6 +180,9 @@ def run_schema_migrations():
                 ("upload_banned", "BOOLEAN DEFAULT False NOT NULL"),
                 ("upload_ban_reason", "TEXT"),
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

@@ -77,8 +77,11 @@ const Tip = ({ label, children }) => (
 // ── Main Component ────────────────────────────────────────────────────────────
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 const VideoPlayer = ({ src, poster, onError }) => {
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 const VideoPlayer = ({ src, poster, onError,
@@ -89,6 +92,9 @@ const VideoPlayer = ({ src, poster, onError,
     onAutoplayEnd
 }) => {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -116,11 +122,14 @@ const VideoPlayer = ({ src, poster, onError,
     const [hoverTime, setHoverTime] = useState(null);
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     const [hoverX, setHoverX] = useState(0);
     const [showSpeedMenu, setShowSpeedMenu] = useState(false);
     const [showQualityMenu, setShowQualityMenu] = useState(false);
     const [playbackRate, setPlaybackRate] = useState(1);
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
     const [settingsMenuState, setSettingsMenuState] = useState('closed');
@@ -129,6 +138,9 @@ const VideoPlayer = ({ src, poster, onError,
         return saved !== null ? parseFloat(saved) : 1;
     });
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -141,6 +153,7 @@ const VideoPlayer = ({ src, poster, onError,
     const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
     const QUALITIES = ['Auto', '1080p HD', '720p', '480p', '360p'];
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
     // ── Auto-hide controls ──────────────────────────────────────────────────
@@ -158,6 +171,11 @@ const VideoPlayer = ({ src, poster, onError,
     // Override Quality list specifically formatted per the new user request
     const QUALITIES = React.useMemo(() => {
         return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
+=======
+    // Override Quality list specifically formatted per the new user request
+    const QUALITIES = React.useMemo(() => {
+        return ['Auto', '1080p', '720p', '480p', '360p', '144p', 'Original'];
+>>>>>>> Stashed changes
     }, []);
 
     const isTranscoding = transcodeStatus === 'processing';
@@ -193,8 +211,11 @@ const VideoPlayer = ({ src, poster, onError,
         const onPause = () => setPlaying(false);
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         const onEnded = () => { setPlaying(false); setEnded(true); setShowControls(true); };
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
         const onEnded = () => {
@@ -206,6 +227,9 @@ const VideoPlayer = ({ src, poster, onError,
             }
         };
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -231,6 +255,11 @@ const VideoPlayer = ({ src, poster, onError,
         v.addEventListener('loadedmetadata', onLoadedMetadata);
         v.addEventListener('volumechange', onVolumeChange);
         v.addEventListener('ratechange', onRateChange);
+
+        // Sync initial persisted values to the video element DOM when mounted
+        v.volume = volume;
+        v.muted = muted;
+        v.playbackRate = playbackRate;
 
         // Sync initial persisted values to the video element DOM when mounted
         v.volume = volume;
@@ -443,7 +472,10 @@ const VideoPlayer = ({ src, poster, onError,
         >
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
             {/* ── Top Info Bar (title only, visible only in fullscreen) ── */}
@@ -483,6 +515,26 @@ const VideoPlayer = ({ src, poster, onError,
                     >
                         <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/10">
                             <div className="w-10 h-10 text-white translate-x-0.5"><PlayIcon /></div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Skip Indicator Overlay ── */}
+            <AnimatePresence>
+                {skipIndicator && (
+                    <motion.div
+                        key={skipIndicator.key}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.1 }}
+                        transition={{ duration: 0.2 }}
+                        className={`absolute top-1/2 -translate-y-1/2 ${skipIndicator.type === 'forward' ? 'right-24' : 'left-24'} pointer-events-none z-50`}
+                    >
+                        <div className="bg-black/40 backdrop-blur-sm px-6 py-4 rounded-full text-white font-bold text-2xl tracking-widest flex items-center gap-2 shadow-2xl border border-white/10">
+                            {skipIndicator.type === 'backward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>}
+                            {skipIndicator.type === 'backward' ? '- 10' : '+ 10'}
+                            {skipIndicator.type === 'forward' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>}
                         </div>
                     </motion.div>
                 )}
@@ -629,6 +681,7 @@ const VideoPlayer = ({ src, poster, onError,
                             </Tip>
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                             <AnimatePresence>
                                 {showVolume && (
                                     <motion.div
@@ -651,6 +704,8 @@ const VideoPlayer = ({ src, poster, onError,
 =======
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
                             <div
                                 className="w-[66px] min-w-[66px] shrink-0 opacity-0 group-hover/vol:opacity-100 transition-opacity duration-300 flex items-center ml-1"
                                 onClick={(e) => e.stopPropagation()} // Prevent mute trigger when dragging
@@ -664,6 +719,7 @@ const VideoPlayer = ({ src, poster, onError,
                                     style={{ '--vol': `${(muted ? 0 : volume) * 100}%` }}
                                 />
                             </div>
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 >>>>>>> Stashed changes
                         </div>
@@ -751,6 +807,34 @@ const VideoPlayer = ({ src, poster, onError,
 <<<<<<< Updated upstream
                         {/* Quality Settings */}
                         <div className="relative">
+=======
+                        </div>
+
+                        {/* Time Pill */}
+                        <div className="h-[44px] px-5 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md">
+                            <span className="text-white text-[13px] font-bold tracking-tight">
+                                {fmt(currentTime)} <span className="text-white/60 mx-1 font-normal">/</span> {fmt(duration)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Right: Unified Pill for Tools */}
+                    <div className="h-[44px] px-5 rounded-[22px] bg-white/20 flex items-center gap-7 backdrop-blur-md">
+                        {/* Autoplay Toggle */}
+                        <Tip label="Autoplay is on">
+                            <div
+                                onClick={() => setAutoplayEnabled(!autoplayEnabled)}
+                                className={`w-[40px] h-[22px] rounded-full p-[2px] cursor-pointer flex flex-shrink-0 items-center transition-colors shadow-inner ${autoplayEnabled ? 'bg-white' : 'bg-white/40'}`}
+                            >
+                                <div className={`w-[18px] h-[18px] rounded-full bg-[#111] flex items-center justify-center transition-transform ${autoplayEnabled ? 'translate-x-[18px]' : 'translate-x-0'}`}>
+                                    {autoplayEnabled && <div className="w-[8px] h-[8px] text-white ml-[1px]"><PlayIcon /></div>}
+                                </div>
+                            </div>
+                        </Tip>
+
+                        {/* Settings with HD badge */}
+                        <div className="relative flex items-center justify-center flex-shrink-0">
+>>>>>>> Stashed changes
                             <Tip label="Settings">
                                 <button
                                     onClick={() => { setShowQualityMenu(p => !p); setShowSpeedMenu(false); }}
@@ -786,15 +870,21 @@ const VideoPlayer = ({ src, poster, onError,
                                 <button
                                     onClick={() => setSettingsMenuState(prev => prev === 'closed' ? 'main' : 'closed')}
                                     className={`w-5 h-5 transition-all active:scale-95 ${settingsMenuState !== 'closed' ? 'text-white rotate-45 scale-110' : 'text-white hover:opacity-80'}`}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                                 >
                                     <SettingsIcon />
                                 </button>
                             </Tip>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                             <AnimatePresence>
                                 {showQualityMenu && (
 =======
+=======
+>>>>>>> Stashed changes
 
                             {/* HD Badge */}
                             {(quality === '1080p' || quality === '720p' || quality === 'Auto') && (

@@ -35,6 +35,9 @@ from backend.routes.channel_routes import router as channel_router
 from backend.routes.stream_routes import router as stream_router
 from backend.routes.admin_routes import router as admin_router
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -78,6 +81,9 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.include_router(chat_router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

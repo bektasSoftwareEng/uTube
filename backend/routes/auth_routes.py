@@ -119,6 +119,9 @@ class UserResponse(BaseModel):
     upload_banned: bool = False
     upload_ban_reason: Optional[str] = None
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -503,6 +506,9 @@ def build_user_response(user: User, db: Session) -> UserResponse:
         upload_banned=bool(user.upload_banned),
         upload_ban_reason=user.upload_ban_reason,
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

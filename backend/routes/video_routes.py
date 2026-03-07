@@ -218,6 +218,9 @@ async def upload_video(
             detail=ban_reason
         )
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

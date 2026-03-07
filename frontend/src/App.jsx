@@ -16,8 +16,11 @@ import BlockedVideos from './pages/BlockedVideos';
 import MyChannel from './pages/MyChannel';
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { UTUBE_TOKEN } from './utils/authConstants'
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 import Channel from './pages/Channel';
@@ -27,6 +30,9 @@ import Subscriptions from './pages/Subscriptions';
 import LikedVideos from './pages/LikedVideos';
 import { UTUBE_TOKEN, UTUBE_USER } from './utils/authConstants'
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -126,6 +132,9 @@ const AppLayout = () => {
                     <Route path="/subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
                     <Route path="/liked" element={<ProtectedRoute><LikedVideos /></ProtectedRoute>} />
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
