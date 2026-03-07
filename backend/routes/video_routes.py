@@ -205,6 +205,19 @@ async def upload_video(
 ):
     video_path = None
     thumbnail_path = None
+<<<<<<< Updated upstream
+=======
+    thumbnail_filename = None
+    thumbnail_success = False
+
+    # ── UPLOAD BAN CHECK ── Must be the very first thing checked.
+    if current_user.upload_banned:
+        ban_reason = current_user.upload_ban_reason or "You have been banned from uploading videos."
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ban_reason
+        )
+>>>>>>> Stashed changes
     
     try:
         print(f"[UPLOAD] Starting video upload for user {current_user.username} - Title: {title}")

@@ -43,7 +43,14 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     
     # Profile Information
+<<<<<<< Updated upstream
     profile_image = Column(String(255), nullable=True, default="default_avatar.png")
+=======
+    profile_image = Column(String(255), nullable=True)
+    channel_description = Column(Text, nullable=True)
+    channel_banner_url = Column(String(255), nullable=True)
+    banner_position = Column(Integer, nullable=True, default=50)  # 0-100 vertical focal point %
+>>>>>>> Stashed changes
     is_synthetic = Column(Integer, default=0, nullable=False)  # For test data (0=real, 1=synthetic)
     stream_key = Column(String(100), unique=True, index=True, nullable=True)
     is_live = Column(Boolean, default=False, nullable=False, index=True)
@@ -58,6 +65,11 @@ class User(Base):
     verification_code = Column(String(6), nullable=True)
     verification_expires_at = Column(DateTime, nullable=True)
     pending_email = Column(String(100), nullable=True)
+
+    # Admin Fields
+    is_admin = Column(Boolean, default=False, nullable=False)
+    upload_banned = Column(Boolean, default=False, nullable=False)
+    upload_ban_reason = Column(Text, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -197,9 +209,16 @@ class Video(Base):
         return self.likes.filter(Like.is_dislike == True).count()
     
     def get_tags_list(self):
-        """Parse tags string into a list."""
-        if self.tags:
-            return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+        """Parse tags into a list, handling both JSON list and string formats."""
+        if isinstance(self.tags, list):
+            return self.tags
+        if isinstance(self.tags, str):
+            import json
+            try:
+                parsed = json.loads(self.tags)
+                return parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, TypeError):
+                return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
         return []
 
 
@@ -382,3 +401,171 @@ class CommentLike(Base):
     
     def __repr__(self):
         return f"<CommentLike(id={self.id}, user={self.user_id}, comment={self.comment_id}, dislike={self.is_dislike})>"
+<<<<<<< Updated upstream
+=======
+
+
+class StreamLike(Base):
+    """
+    StreamLike model for tracking likes on live streams.
+    
+    Attributes:
+        id: Primary key
+        user_id: Foreign key to User (who liked)
+        streamer_id: Foreign key to User (whose stream was liked)
+        created_at: When the like was created
+    """
+    __tablename__ = "stream_likes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    streamer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Unique constraint: one like per user per streamer
+    __table_args__ = (
+        UniqueConstraint('user_id', 'streamer_id', name='unique_stream_like'),
+    )
+    
+    def __repr__(self):
+        return f"<StreamLike(id={self.id}, user={self.user_id}, streamer={self.streamer_id})>"
+
+
+class ChatMessage(Base):
+    """
+    ChatMessage model for persisting live stream chat messages.
+    
+    Attributes:
+        id: Primary key
+        room: Streamer username (room identifier)
+        sender: Username of the message sender
+        text: Message content
+        is_mod: Whether sender is a moderator
+        created_at: When the message was sent
+    """
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    sender = Column(String(50), nullable=False)
+    text = Column(Text, nullable=False)
+    is_mod = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    def __repr__(self):
+        return f"<ChatMessage(id={self.id}, room='{self.room}', sender='{self.sender}')>"
+
+
+class ActivityLog(Base):
+    """
+    ActivityLog model for persisting stream activity events.
+    
+    Attributes:
+        id: Primary key
+        room: Streamer username (room identifier)
+        username: User who performed the action
+        activity_type: Type of activity (like, subscribe)
+        created_at: When the activity occurred
+    """
+    __tablename__ = "activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    activity_type = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<ActivityLog(id={self.id}, room='{self.room}', type='{self.activity_type}')>"
+
+
+class ClipLog(Base):
+    """
+    ClipLog model for persisting clip marker timestamps.
+    """
+    __tablename__ = "clip_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    clip_timestamp = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<ClipLog(id={self.id}, room='{self.room}')>"
+
+
+class StreamMarker(Base):
+    """Stream marker model for saving timestamp markers during broadcast."""
+    __tablename__ = "stream_markers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room = Column(String(50), nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    label = Column(String(200), nullable=True)
+    marker_timestamp = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<StreamMarker(id={self.id}, room='{self.room}')>"
+
+
+class AdminAuditLog(Base):
+    """
+    AdminAuditLog records every privileged admin action for transparency and accountability.
+
+    Attributes:
+        id: Primary key
+        admin_user_id: FK to the admin who performed the action
+        action_type: e.g. 'DELETE_VIDEO', 'BAN_USER', 'SEND_WARNING'
+        target_type: 'video' | 'user' | 'comment'
+        target_id: ID of the affected resource
+        detail: Optional free-text reason or extra context
+        created_at: Timestamp
+    """
+    __tablename__ = "admin_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action_type = Column(String(50), nullable=False, index=True)
+    target_type = Column(String(20), nullable=False)  # 'video' | 'user' | 'comment'
+    target_id = Column(Integer, nullable=True)
+    detail = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    admin = relationship("User", foreign_keys=[admin_user_id])
+
+    def __repr__(self):
+        return f"<AdminAuditLog(id={self.id}, action='{self.action_type}', target={self.target_type}:{self.target_id})>"
+
+
+class AdminWarning(Base):
+    """
+    AdminWarning stores formal channel warnings sent by admins to specific users.
+    These appear in the user's Notifications page as a distinct admin notice.
+
+    Attributes:
+        id: Primary key
+        target_user_id: FK to the user who receives the warning
+        admin_user_id: FK to the admin who sent the warning
+        title: Short summary (e.g. 'Community Guidelines Violation')
+        message: Full warning message body
+        is_read: Whether the user has acknowledged the warning
+        created_at: Timestamp
+    """
+    __tablename__ = "admin_warnings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    admin_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    target_user = relationship("User", foreign_keys=[target_user_id])
+    admin = relationship("User", foreign_keys=[admin_user_id])
+
+    def __repr__(self):
+        return f"<AdminWarning(id={self.id}, target_user={self.target_user_id}, title='{self.title[:30]}')>"
+>>>>>>> Stashed changes

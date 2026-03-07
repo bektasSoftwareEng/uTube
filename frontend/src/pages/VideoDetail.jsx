@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import ApiClient from '../utils/ApiClient';
@@ -49,6 +49,7 @@ const SidebarSkeleton = () => (
 
 const VideoDetail = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [video, setVideo] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -466,6 +467,14 @@ const VideoDetail = () => {
         }
     };
 
+    const handleAutoplayEnd = () => {
+        if (recommendations && recommendations.length > 0) {
+            const nextVideo = recommendations[0];
+            toast(`Autoplaying: ${nextVideo.title}`, { icon: '🍿', duration: 3000 });
+            navigate(`/video/${nextVideo.id}`);
+        }
+    };
+
     // ══════════════════════════════════════════════════
     // Render: Loading & Error States
     // ══════════════════════════════════════════════════
@@ -525,6 +534,14 @@ const VideoDetail = () => {
                                     e.target.src = DYNAMIC_FALLBACK;
                                 }
                             }}
+<<<<<<< Updated upstream
+=======
+                            availableResolutions={availableResolutions}
+                            transcodeStatus={transcodeStatus}
+                            title={video.title}
+                            channelName={video.author?.username}
+                            onAutoplayEnd={handleAutoplayEnd}
+>>>>>>> Stashed changes
                         />
                     </div>
 
@@ -746,7 +763,7 @@ const VideoDetail = () => {
                                                                 setReplyText('');
                                                             }
                                                         }}
-                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold transition-colors ${replyingTo?.id === comment.id ? 'text-[var(--gold)] bg-[var(--gold)]/10' : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold transition-colors ${replyingTo?.id === comment.id ? 'text-[var(--accent)] bg-[var(--accent)]/10' : 'text-white/30 hover:text-white/60 hover:bg-white/5'}`}
                                                     >
                                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -784,14 +801,14 @@ const VideoDetail = () => {
                                                             </div>
                                                             <div className="flex-1">
                                                                 <div className="relative">
-                                                                    <span className="text-[var(--gold)] text-xs font-bold mr-1">@{replyingTo.username}</span>
+                                                                    <span className="text-[var(--accent)] text-xs font-bold mr-1">@{replyingTo.username}</span>
                                                                     <input
                                                                         type="text"
                                                                         autoFocus
                                                                         value={replyText}
                                                                         onChange={(e) => setReplyText(e.target.value)}
                                                                         placeholder="Write a reply..."
-                                                                        className="w-full bg-transparent border-b border-white/10 focus:border-[var(--gold)]/50 outline-none text-sm py-1 text-white placeholder-white/30 transition-colors"
+                                                                        className="w-full bg-transparent border-b border-white/10 focus:border-[var(--accent)]/50 outline-none text-sm py-1 text-white placeholder-white/30 transition-colors"
                                                                     />
                                                                 </div>
                                                                 <div className="flex justify-end gap-2 mt-2">
@@ -806,7 +823,7 @@ const VideoDetail = () => {
                                                                         type="submit"
                                                                         disabled={replySubmitting || !replyText.trim()}
                                                                         className="px-3 py-1 rounded-full text-xs font-black transition-colors disabled:opacity-40"
-                                                                        style={{ background: 'var(--gold)', color: 'black' }}
+                                                                        style={{ background: 'var(--accent)', color: 'black' }}
                                                                     >
                                                                         {replySubmitting ? 'Posting…' : 'Reply'}
                                                                     </button>
@@ -822,7 +839,7 @@ const VideoDetail = () => {
                                                         <button
                                                             onClick={() => setExpandedReplies(prev => ({ ...prev, [comment.id]: !prev[comment.id] }))}
                                                             className="flex items-center gap-1.5 text-xs font-black mb-3 transition-colors"
-                                                            style={{ color: 'var(--gold)' }}
+                                                            style={{ color: 'var(--accent)' }}
                                                         >
                                                             <svg className={`w-3.5 h-3.5 transition-transform ${expandedReplies[comment.id] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />

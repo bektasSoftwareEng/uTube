@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiClient from '../utils/ApiClient';
@@ -138,24 +138,31 @@ const Home = () => {
     }, [searchQuery, selectedCategory]);
 
     // Apply global channel and video block filters first
-    const visibleVideos = videos.filter(v =>
+    const visibleVideos = useMemo(() => videos.filter(v =>
         !blockedChannels.has(v.author?.id) &&
         !blockedVideos.some(bv => bv.id === v.id)
-    );
+    ), [videos, blockedChannels, blockedVideos]);
 
-    const visibleLiveStreams = liveStreams.filter(stream =>
+    const visibleLiveStreams = useMemo(() => liveStreams.filter(stream =>
         !blockedChannels.has(stream.id) &&
         !blockedVideos.some(bv => bv.id === stream.id)
-    );
+    ), [liveStreams, blockedChannels, blockedVideos]);
 
-    const visibleTrendingVideos = trendingVideos.filter(v =>
+    const visibleTrendingVideos = useMemo(() => trendingVideos.filter(v =>
         !blockedChannels.has(v.author?.id) &&
         !blockedVideos.some(bv => bv.id === v.id)
-    );
+    ), [trendingVideos, blockedChannels, blockedVideos]);
 
+<<<<<<< Updated upstream
     const filteredVideos = selectedCategory === "All"
+=======
+    const visibleChannels = useMemo(() => channels.filter(c => !blockedChannels.has(c.id)), [channels, blockedChannels]);
+
+    const filteredVideos = useMemo(() => selectedCategory === "All"
+>>>>>>> Stashed changes
         ? visibleVideos
-        : visibleVideos.filter(video => video.category === selectedCategory);
+        : visibleVideos.filter(video => video.category === selectedCategory),
+        [selectedCategory, visibleVideos]);
 
     return (
         <div className="min-h-screen pt-16 sm:pt-20">
