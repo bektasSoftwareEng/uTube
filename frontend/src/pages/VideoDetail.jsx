@@ -86,6 +86,8 @@ const VideoDetail = () => {
     const [availableResolutions, setAvailableResolutions] = useState(null);
     const [transcodeStatus, setTranscodeStatus] = useState('pending');
 
+    // ── Description Expand State ──
+    const [isExpanded, setIsExpanded] = useState(false);
     // ── Channel Subscriber Count (author) ──
     const [authorSubCount, setAuthorSubCount] = useState(null);
 
@@ -334,6 +336,41 @@ const VideoDetail = () => {
             if (resPollInterval) clearInterval(resPollInterval);
         };
     }, [video, id]);
+
+    // ══════════════════════════════════════════════════
+    // Text Parser (URLs & Hashtags)
+    // ══════════════════════════════════════════════════
+    const formatText = (text) => {
+        if (!text) return null;
+        const regex = /(https?:\/\/[^\s]+|#[^\s]+)/g;
+        const parts = text.split(regex);
+        return parts.map((part, i) => {
+            if (part.match(/^https?:\/\//)) {
+                return (
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-500 hover:text-red-400 underline decoration-red-500/30 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {part}
+                    </a>
+                );
+            } else if (part.match(/^#/)) {
+                return (
+                    <span
+                        key={i}
+                        className="text-red-500 font-medium cursor-pointer hover:text-red-400 transition-colors"
+                    >
+                        {part}
+                    </span>
+                );
+            }
+            return part;
+        });
+    };
 
     // ══════════════════════════════════════════════════
     // Handlers
@@ -677,6 +714,35 @@ const VideoDetail = () => {
                             <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-2 rounded-full transition-colors glass font-bold text-sm">
                                 Share
                             </button>
+                        </div>
+                    </div>
+
+                    {/* ══════════════════════════════════════════════════ */}
+                    {/* Expandable Description Box                       */}
+                    {/* ══════════════════════════════════════════════════ */}
+                    <div
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 cursor-pointer mt-4 flex flex-col"
+                    >
+                        <p className="font-bold text-sm text-white/90 mb-2">
+                            {video.view_count || 0} views
+                            {video.upload_date && (
+                                <>
+                                    <span className="mx-1">•</span>
+                                    {new Date(video.upload_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </>
+                            )}
+                        </p>
+
+                        <div className={`text-sm text-white/80 whitespace-pre-wrap ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                            {formatText(video.description)}
+                        </div>
+
+                        {/* Centered Indicator inside the box */}
+                        <div className="mt-2 pt-1 flex justify-center w-full">
+                            <span className="text-xs font-bold text-white/50 uppercase tracking-wider hover:text-white transition-colors">
+                                {isExpanded ? "Show less ▲" : "Show more ▼"}
+                            </span>
                         </div>
                     </div>
 
